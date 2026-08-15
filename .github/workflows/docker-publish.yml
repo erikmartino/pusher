@@ -25,13 +25,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Compute version from run and rerun
+      - name: Compute version from GitHub runner variables
         id: versioning
         run: |
           RERUN=$((${{ github.run_attempt }} - 1))
           VERSION="1.${{ github.run_number }}.${RERUN}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Computed version: ${VERSION}"
+          echo "Computed GitHub runner version: ${VERSION}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -57,8 +57,6 @@ jobs:
             type=raw,value=${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
             type=raw,value=v${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
             type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
 
       - name: Build and push Docker image
@@ -73,13 +71,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create and push git tag
+      - name: Create and push git release tags
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="v${{ steps.versioning.outputs.version }}"
-          if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
-            git tag -a "${TAG}" -m "Release ${TAG}"
-            git push origin "${TAG}" || echo "Tag push skipped or already exists"
+          VERSION="${{ steps.versioning.outputs.version }}"
+          if ! git rev-parse "${VERSION}" >/dev/null 2>&1; then
+            git tag -a "${VERSION}" -m "Release ${VERSION}"
+            git push origin "${VERSION}" || echo "Tag push ${VERSION} skipped"
+          fi
+          if ! git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            git tag -a "v${VERSION}" -m "Release v${VERSION}"
+            git push origin "v${VERSION}" || echo "Tag push v${VERSION} skipped"
           fi
