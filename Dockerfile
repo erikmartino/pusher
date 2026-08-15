@@ -1,5 +1,9 @@
 FROM docker.io/library/nginx:alpine
 
+LABEL org.opencontainers.image.source="https://github.com/erikmartino/pusher"
+LABEL org.opencontainers.image.description="Tactile Push Button Progressive Web App"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Remove default nginx configs and assets
 RUN rm -rf /etc/nginx/conf.d/default.conf /usr/share/nginx/html/*
 
