@@ -1,11 +1,9 @@
-name: Build and Publish Container to GHCR
+name: Build and Push Docker Image
 
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "[0-9]+.[0-9]+.[0-9]+" ]
-  pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
+    tags: [ '[0-9]+.[0-9]+.[0-9]+' ]
   workflow_dispatch:
 
 env:
@@ -14,13 +12,14 @@ env:
 
 jobs:
   build-and-push:
+    name: Build and Push Image
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -31,16 +30,9 @@ jobs:
           RERUN=$((${{ github.run_attempt }} - 1))
           VERSION="1.${{ github.run_number }}.${RERUN}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Computed GitHub runner version: ${VERSION}"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          echo "Computed version: ${VERSION}"
 
       - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -53,22 +45,17 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
-            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ steps.versioning.outputs.version }}
             type=sha,format=short
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Create and push git release tag
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
