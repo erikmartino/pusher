@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <title>Pusher — The Big Red Button PWA</title>
+  <meta name="description" content="A tactile, responsive, installable Progressive Web App push button." />
+
+  <!-- Favicons -->
+  <link rel="icon" type="image/x-icon" href="icons/favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png" />
+
+  <!-- Apple Touch & iOS Meta -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Pusher" />
+
+  <!-- Web App Manifest (Android / Desktop PWA) -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0e131b" />
+
+  <!-- Windows Tiles -->
+  <meta name="msapplication-config" content="browserconfig.xml" />
+  <meta name="msapplication-TileColor" content="#e52d27" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    :root {
+      --bg: #0b0f17;
+      --card-bg: rgba(22, 29, 44, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-muted: #8b9bb4;
+      --accent: #e52d27;
+      --accent-glow: rgba(229, 45, 39, 0.35);
+      --success: #10b981;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      overflow-x: hidden;
+      padding: env(safe-area-inset-top, 16px) env(safe-area-inset-right, 16px) env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 16px);
+      background-image: 
+        radial-gradient(ellipse 70% 50% at 50% 0%, rgba(229, 45, 39, 0.12), transparent 70%),
+        radial-gradient(ellipse 60% 50% at 50% 100%, rgba(30, 41, 59, 0.4), transparent);
+    }
+
+    header {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      margin-top: 4px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-btn {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      transition: all 0.15s ease;
+      backdrop-filter: blur(8px);
+    }
+
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .icon-btn:active {
+      transform: scale(0.92);
+    }
+
+    .icon-btn.muted svg {
+      opacity: 0.4;
+    }
+
+    /* Main Stage */
+    main {
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      padding: 10px 0;
+    }
+
+    /* Stats Display */
+    .counter-board {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 14px 28px;
+      text-align: center;
+      margin-bottom: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+      backdrop-filter: blur(12px);
+      width: 86%;
+      max-width: 320px;
+    }
+
+    .counter-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .counter-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.04em;
+      color: #ffffff;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.25);
+      transition: transform 0.08s ease;
+    }
+
+    .counter-number.bump {
+      transform: scale(1.08);
+      color: #ff5252;
+    }
+
+    /* Button Area */
+    .button-stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 320px;
+      aspect-ratio: 1;
+      margin: 10px 0;
+    }
+
+    .button-glow {
+      position: absolute;
+      width: 75%;
+      height: 75%;
+      background: var(--accent-glow);
+      filter: blur(40px);
+      border-radius: 50%;
+      pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      opacity: 0.6;
+    }
+
+    .push-target {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background: none;
+      border: none;
+      cursor: pointer;
+      outline: none;
+      touch-action: manipulation;
+      transition: transform 0.08s cubic-bezier(0.2, 0, 0.38, 0.9), filter 0.08s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .push-target img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.6));
+      transition: filter 0.08s ease, transform 0.08s ease;
+    }
+
+    .push-target:active,
+    .push-target.pressed {
+      transform: translateY(10px) scale(0.96);
+    }
+
+    .push-target:active img,
+    .push-target.pressed img {
+      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.8));
+    }
+
+    .push-target:active ~ .button-glow,
+    .push-target.pressed ~ .button-glow {
+      opacity: 0.95;
+      transform: scale(1.15);
+    }
+
+    /* Keyhint */
+    .key-hint {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kbd {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 2px 7px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-main);
+    }
+
+    /* Footer & Meta */
+    footer {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+    }
+
+    .pwa-install-banner {
+      width: 100%;
+      background: linear-gradient(135deg, rgba(229, 45, 39, 0.2), rgba(22, 29, 44, 0.8));
+      border: 1px solid rgba(229, 45, 39, 0.4);
+      border-radius: 14px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(10px);
+      animation: fadeIn 0.3s ease;
+    }
+
+    .install-text {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .install-btn {
+      background: #e52d27;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.1s ease;
+    }
+
+    .install-btn:active {
+      transform: scale(0.94);
+    }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      display: inline-block;
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .status-dot.offline {
+      background: #f59e0b;
+      box-shadow: 0 0 8px #f59e0b;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @media (max-height: 640px) {
+      .button-stage {
+        max-width: 220px;
+      }
+      .counter-number {
+        font-size: 2.2rem;
+      }
+      .counter-board {
+        padding: 8px 18px;
+        margin-bottom: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <img src="icons/icon-96x96.png" alt="Pusher" class="brand-icon" />
+      <span class="brand-title">Pusher</span>
+    </div>
+    <div class="header-actions">
+      <button id="soundToggle" class="icon-btn" aria-label="Toggle Sound" title="Toggle Sound">
+        <svg id="soundIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+      </button>
+      <button id="resetBtn" class="icon-btn" aria-label="Reset Counter" title="Reset Counter">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+          <path d="M3 3v5h5"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Area -->
+  <main>
+    <div class="counter-board">
+      <div class="counter-label">Total Pushes</div>
+      <div id="counter" class="counter-number">0</div>
+    </div>
+
+    <div class="button-stage">
+      <div class="button-glow"></div>
+      <button id="pushBtn" class="push-target" aria-label="Push Button">
+        <img src="icons/icon-512x512.png" alt="Push Button" />
+      </button>
+    </div>
+
+    <div class="key-hint">
+      <span>Press button or hit</span>
+      <span class="kbd">Space</span>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div id="installBanner" class="pwa-install-banner" style="display: none;">
+      <span class="install-text">Install Pusher for instant offline access</span>
+      <button id="installBtn" class="install-btn">Install</button>
+    </div>
+
+    <div class="status-bar">
+      <span><span id="onlineDot" class="status-dot"></span> <span id="onlineText">Online (PWA Ready)</span></span>
+      <span>•</span>
+      <span id="rateText">0 pushes/min</span>
+    </div>
+  </footer>
+
+  <script>
+    // Audio Synthesis for Heavy Industrial Click
+    let audioCtx = null;
+    let soundEnabled = true;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function playMechanicalSound(type) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+
+      if (type === 'press') {
+        // Low punch / thud
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(45, now + 0.08);
+
+        gain.gain.setValueAtTime(0.6, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+
+        // Click snap noise
+        const bufferSize = audioCtx.sampleRate * 0.03;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+        const noiseFilter = audioCtx.createBiquadFilter();
+        noiseFilter.type = 'highpass';
+        noiseFilter.frequency.value = 1200;
+
+        const noiseGain = audioCtx.createGain();
+        noiseGain.gain.setValueAtTime(0.4, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.03);
+
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
+        noise.start(now);
+      } else {
+        // Release clack
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.05);
+
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      }
+    }
+
+    // State & Persistence
+    let count = parseInt(localStorage.getItem('pusher_count') || '0', 10);
+    const counterEl = document.getElementById('counter');
+    const pushBtn = document.getElementById('pushBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const soundToggle = document.getElementById('soundToggle');
+    const soundIcon = document.getElementById('soundIcon');
+    const rateText = document.getElementById('rateText');
+    const onlineDot = document.getElementById('onlineDot');
+    const onlineText = document.getElementById('onlineText');
+
+    counterEl.textContent = count.toLocaleString();
+
+    // Speed tracking
+    let pushTimestamps = [];
+    function recordPush() {
+      const now = Date.now();
+      pushTimestamps.push(now);
+      pushTimestamps = pushTimestamps.filter(t => now - t < 60000);
+      rateText.textContent = `${pushTimestamps.length} pushes/min`;
+    }
+    setInterval(() => {
+      const now = Date.now();
+      pushTimestamps = pushTimestamps.filter(t => now - t < 60000);
+      rateText.textContent = `${pushTimestamps.length} pushes/min`;
+    }, 3000);
+
+    // Push Action
+    function doPush() {
+      count++;
+      localStorage.setItem('pusher_count', count.toString());
+      counterEl.textContent = count.toLocaleString();
+
+      counterEl.classList.remove('bump');
+      void counterEl.offsetWidth;
+      counterEl.classList.add('bump');
+      setTimeout(() => counterEl.classList.remove('bump'), 100);
+
+      // Haptics
+      if (navigator.vibrate) {
+        navigator.vibrate(20);
+      }
+
+      playMechanicalSound('press');
+      recordPush();
+    }
+
+    // Pointer events for instant responsive touch
+    pushBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      pushBtn.classList.add('pressed');
+      doPush();
+    });
+
+    const releaseButton = () => {
+      if (pushBtn.classList.contains('pressed')) {
+        pushBtn.classList.remove('pressed');
+        playMechanicalSound('release');
+      }
+    };
+
+    window.addEventListener('pointerup', releaseButton);
+    window.addEventListener('pointercancel', releaseButton);
+
+    // Keyboard support
+    let spaceDown = false;
+    window.addEventListener('keydown', (e) => {
+      if ((e.code === 'Space' || e.key === 'Enter') && !spaceDown && e.target.tagName !== 'BUTTON') {
+        spaceDown = true;
+        pushBtn.classList.add('pressed');
+        doPush();
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space' || e.key === 'Enter') {
+        spaceDown = false;
+        releaseButton();
+      }
+    });
+
+    // Reset button
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Reset push counter to 0?')) {
+        count = 0;
+        localStorage.setItem('pusher_count', '0');
+        counterEl.textContent = '0';
+      }
+    });
+
+    // Sound toggle
+    soundToggle.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      soundToggle.classList.toggle('muted', !soundEnabled);
+      soundToggle.setAttribute('aria-label', soundEnabled ? 'Mute Sound' : 'Unmute Sound');
+      if (soundEnabled) {
+        initAudio();
+        playMechanicalSound('release');
+      }
+    });
+
+    // Online/Offline status
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        onlineDot.classList.remove('offline');
+        onlineText.textContent = 'Online (PWA Ready)';
+      } else {
+        onlineDot.classList.add('offline');
+        onlineText.textContent = 'Offline (Cached)';
+      }
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus();
+
+    // PWA Install Prompt
+    let deferredPrompt = null;
+    const installBanner = document.getElementById('installBanner');
+    const installBtn = document.getElementById('installBtn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBanner.style.display = 'flex';
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        installBanner.style.display = 'none';
+      }
+      deferredPrompt = null;
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installBanner.style.display = 'none';
+    });
+
+    // Service Worker Registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+          console.log('ServiceWorker registered:', reg.scope);
+        }).catch((err) => {
+          console.warn('ServiceWorker registration failed:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>

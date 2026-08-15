@@ -1,0 +1,5 @@
+.git
+.gitignore
+manifest-source
+*.log
+.DS_Store

@@ -1,0 +1,21 @@
+{
+  "name": "pusher",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tactile Push Button Progressive Web App",
+  "type": "module",
+  "scripts": {
+    "dev": "npx -y serve . -l 3000",
+    "start": "npx -y serve . -l 8080",
+    "docker:build": "docker build -t pusher:latest .",
+    "docker:run": "docker run --rm -p 8080:80 --name pusher pusher:latest",
+    "podman:build": "podman build -t pusher:latest .",
+    "podman:run": "podman run --rm -p 8080:80 --name pusher pusher:latest"
+  },
+  "keywords": [
+    "pwa",
+    "push-button",
+    "web-app"
+  ],
+  "license": "MIT"
+}
