@@ -3,7 +3,7 @@ name: Build and Publish Container to GHCR
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*.*.*", "v*" ]
+    tags: [ "v*.*.*", "v*", "[0-9]+.[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -16,12 +16,22 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute version from run and rerun
+        id: versioning
+        run: |
+          RERUN=$((${{ github.run_attempt }} - 1))
+          VERSION="1.${{ github.run_number }}.${RERUN}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Computed version: ${VERSION}"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -44,6 +54,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
+            type=raw,value=v${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -60,3 +72,14 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Create and push git tag
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="v${{ steps.versioning.outputs.version }}"
+          if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
+            git tag -a "${TAG}" -m "Release ${TAG}"
+            git push origin "${TAG}" || echo "Tag push skipped or already exists"
+          fi
