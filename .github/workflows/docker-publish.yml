@@ -3,7 +3,7 @@ name: Build and Publish Container to GHCR
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*.*.*", "v*", "[0-9]+.[0-9]+.[0-9]+" ]
+    tags: [ "[0-9]+.[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -55,7 +55,6 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
-            type=raw,value=v${{ steps.versioning.outputs.version }},enable={{is_default_branch}}
             type=ref,event=branch
             type=sha,format=short
 
@@ -71,7 +70,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Create and push git release tags
+      - name: Create and push git release tag
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
@@ -80,8 +79,4 @@ jobs:
           if ! git rev-parse "${VERSION}" >/dev/null 2>&1; then
             git tag -a "${VERSION}" -m "Release ${VERSION}"
             git push origin "${VERSION}" || echo "Tag push ${VERSION} skipped"
-          fi
-          if ! git rev-parse "v${VERSION}" >/dev/null 2>&1; then
-            git tag -a "v${VERSION}" -m "Release v${VERSION}"
-            git push origin "v${VERSION}" || echo "Tag push v${VERSION} skipped"
           fi
