@@ -2,14 +2,17 @@
 node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
-# Production & build outputs
+# Production & Build outputs
 dist/
 build/
 out/
 .temp/
 .tmp/
 *.tmp
+.cache/
+.parcel-cache/
 
 # Environment variables & local configuration
 .env
@@ -17,6 +20,10 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*.local
+*.local
+*.pem
+*.key
 
 # Logs
 *.log
@@ -37,6 +44,13 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+*.swo
+*~
+*.bak
+
+# Testing & Coverage
+coverage/
+.nyc_output/
 
 # OS generated files
 .DS_Store
