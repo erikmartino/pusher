@@ -4,7 +4,7 @@
 [![GitHub Container Registry](https://img.shields.io/badge/GHCR-ghcr.io%2Ferikmartino%2Fpusher-blue?logo=docker)](https://github.com/erikmartino/pusher/pkgs/container/pusher)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A tactile, responsive, installable Progressive Web App (PWA) push button built with vanilla web technologies and containerized with Nginx Alpine.
+A tactile, responsive, installable Progressive Web App (PWA) push button built with vanilla web technologies and containerized with a zero-dependency Node.js Alpine server supporting native Web Push notifications.
 
 ---
 
@@ -12,10 +12,11 @@ A tactile, responsive, installable Progressive Web App (PWA) push button built w
 
 - 🔘 **Tactile 3D Button**: Realistic multi-layer CSS bevels, drop shadows, and spring press animations.
 - 📱 **Progressive Web App (PWA)**: Full offline support via custom Service Worker (`sw.js`), web app manifest, and icons for iOS, Android, and Windows tiles.
+- 🔔 **Native Web Push**: Zero-dependency Web Push implementation (RFC 8291 / RFC 8292 VAPID) using built-in Node.js crypto.
 - 🔊 **Web Audio Effects**: Procedurally synthesized mechanical click feedback.
 - 📳 **Haptic Feedback**: Vibration API triggers on mobile devices when pressed.
 - 📊 **Local Statistics**: Persistent click counters, combo streaks, and session metrics.
-- 🐳 **Lightweight Container**: Zero-build static Nginx Alpine image (~25MB) with security headers, gzip/brotli compression, and healthchecks.
+- 🐳 **Lightweight Container**: Zero-dependency Node.js Alpine image with static asset serving and push endpoints.
 - 🚀 **Automated CI/CD**: Multi-platform container builds (`linux/amd64`, `linux/arm64`) pushed automatically to GitHub Container Registry (`ghcr.io`).
 
 ---

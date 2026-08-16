@@ -127,6 +127,13 @@
       transform: scale(0.92);
     }
 
+    .icon-btn.active {
+      color: #10b981;
+      border-color: rgba(16, 185, 129, 0.4);
+      background: rgba(16, 185, 129, 0.12);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
+    }
+
     .icon-btn.muted svg {
       opacity: 0.4;
     }
@@ -363,6 +370,12 @@
       <span class="brand-title">Pusher</span>
     </div>
     <div class="header-actions">
+      <button id="notifyToggle" class="icon-btn" aria-label="Enable Push Notifications" title="Enable Push Notifications">
+        <svg id="notifyIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+        </svg>
+      </button>
       <button id="soundToggle" class="icon-btn" aria-label="Toggle Sound" title="Toggle Sound">
         <svg id="soundIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
@@ -495,11 +508,84 @@
     const resetBtn = document.getElementById('resetBtn');
     const soundToggle = document.getElementById('soundToggle');
     const soundIcon = document.getElementById('soundIcon');
+    const notifyToggle = document.getElementById('notifyToggle');
     const rateText = document.getElementById('rateText');
     const onlineDot = document.getElementById('onlineDot');
     const onlineText = document.getElementById('onlineText');
 
     counterEl.textContent = count.toLocaleString();
+
+    // Base64URL to Uint8Array helper
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+    }
+
+    // Push Notifications Management
+    let isPushSubscribed = false;
+
+    async function checkPushSubscription() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        notifyToggle.style.display = 'none';
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        isPushSubscribed = !!sub;
+        notifyToggle.classList.toggle('active', isPushSubscribed);
+      } catch (err) {
+        console.warn('Failed to check push subscription:', err);
+      }
+    }
+
+    notifyToggle.addEventListener('click', async () => {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Push notifications are not supported in this browser.');
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.ready;
+
+      if (isPushSubscribed) {
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await sub.unsubscribe();
+        isPushSubscribed = false;
+        notifyToggle.classList.remove('active');
+        return;
+      }
+
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert('Notification permission was denied.');
+          return;
+        }
+
+        const keyRes = await fetch('/api/vapid-public-key');
+        if (!keyRes.ok) throw new Error('Could not fetch VAPID key');
+        const { publicKey } = await keyRes.json();
+
+        const subscription = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+
+        await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(subscription)
+        });
+
+        isPushSubscribed = true;
+        notifyToggle.classList.add('active');
+      } catch (err) {
+        console.error('Error subscribing to push:', err);
+        alert('Could not enable push notifications: ' + err.message);
+      }
+    });
 
     // Speed tracking
     let pushTimestamps = [];
@@ -533,6 +619,15 @@
 
       playMechanicalSound('press');
       recordPush();
+
+      // Trigger Web Push Broadcast across subscribed devices
+      if (navigator.onLine) {
+        fetch('/api/broadcast', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ count })
+        }).catch(() => {});
+      }
     }
 
     // Pointer events for instant responsive touch
@@ -633,6 +728,7 @@
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           console.log('ServiceWorker registered:', reg.scope);
+          checkPushSubscription();
         }).catch((err) => {
           console.warn('ServiceWorker registration failed:', err);
         });

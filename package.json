@@ -5,8 +5,8 @@
   "description": "Tactile Push Button Progressive Web App",
   "type": "module",
   "scripts": {
-    "dev": "npx -y serve . -l 3000",
-    "start": "npx -y serve . -l 8080",
+    "dev": "PORT=3000 node server.mjs",
+    "start": "PORT=8080 node server.mjs",
     "docker:build": "docker build -t pusher:latest .",
     "docker:run": "docker run --rm -p 8080:80 --name pusher pusher:latest",
     "podman:build": "podman build -t pusher:latest .",
