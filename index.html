@@ -513,7 +513,57 @@
     const onlineDot = document.getElementById('onlineDot');
     const onlineText = document.getElementById('onlineText');
 
-    counterEl.textContent = count.toLocaleString();
+    function updateCounterUI(newCount, bump = false) {
+      count = newCount;
+      localStorage.setItem('pusher_count', count.toString());
+      counterEl.textContent = count.toLocaleString();
+
+      if (bump) {
+        counterEl.classList.remove('bump');
+        void counterEl.offsetWidth;
+        counterEl.classList.add('bump');
+        setTimeout(() => counterEl.classList.remove('bump'), 100);
+      }
+    }
+
+    updateCounterUI(count, false);
+
+    // Live Server-Sent Events (SSE) stream for real-time global counter sync
+    let eventSource = null;
+    let sseReconnectTimeout = null;
+
+    function connectEventStream() {
+      if (!navigator.onLine) return;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+
+      eventSource = new EventSource('/api/events');
+
+      eventSource.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (typeof data.count === 'number') {
+            const shouldBump = data.type === 'push' && data.count > count;
+            updateCounterUI(data.count, shouldBump);
+          }
+        } catch (err) {
+          console.warn('SSE message parse error:', err);
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        clearTimeout(sseReconnectTimeout);
+        sseReconnectTimeout = setTimeout(() => {
+          if (navigator.onLine) connectEventStream();
+        }, 3000);
+      };
+    }
 
     // Base64URL to Uint8Array helper
     function urlBase64ToUint8Array(base64String) {
@@ -525,6 +575,7 @@
 
     // Push Notifications Management
     let isPushSubscribed = false;
+    let currentSubscription = null;
 
     async function checkPushSubscription() {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -533,8 +584,8 @@
       }
       try {
         const reg = await navigator.serviceWorker.ready;
-        const sub = await reg.pushManager.getSubscription();
-        isPushSubscribed = !!sub;
+        currentSubscription = await reg.pushManager.getSubscription();
+        isPushSubscribed = !!currentSubscription;
         notifyToggle.classList.toggle('active', isPushSubscribed);
       } catch (err) {
         console.warn('Failed to check push subscription:', err);
@@ -552,6 +603,7 @@
       if (isPushSubscribed) {
         const sub = await reg.pushManager.getSubscription();
         if (sub) await sub.unsubscribe();
+        currentSubscription = null;
         isPushSubscribed = false;
         notifyToggle.classList.remove('active');
         return;
@@ -579,6 +631,7 @@
           body: JSON.stringify(subscription)
         });
 
+        currentSubscription = subscription;
         isPushSubscribed = true;
         notifyToggle.classList.add('active');
       } catch (err) {
@@ -603,14 +656,8 @@
 
     // Push Action
     function doPush() {
-      count++;
-      localStorage.setItem('pusher_count', count.toString());
-      counterEl.textContent = count.toLocaleString();
-
-      counterEl.classList.remove('bump');
-      void counterEl.offsetWidth;
-      counterEl.classList.add('bump');
-      setTimeout(() => counterEl.classList.remove('bump'), 100);
+      // Optimistically increment locally
+      updateCounterUI(count + 1, true);
 
       // Haptics
       if (navigator.vibrate) {
@@ -620,13 +667,22 @@
       playMechanicalSound('press');
       recordPush();
 
-      // Trigger Web Push Broadcast across subscribed devices
+      // Trigger Web Push Broadcast & increment server global counter
       if (navigator.onLine) {
-        fetch('/api/broadcast', {
+        fetch('/api/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ count })
-        }).catch(() => {});
+          body: JSON.stringify({
+            senderEndpoint: currentSubscription ? currentSubscription.endpoint : undefined
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data && typeof data.count === 'number') {
+            updateCounterUI(data.count, false);
+          }
+        })
+        .catch(() => {});
       }
     }
 
@@ -665,11 +721,14 @@
     });
 
     // Reset button
-    resetBtn.addEventListener('click', () => {
-      if (confirm('Reset push counter to 0?')) {
-        count = 0;
-        localStorage.setItem('pusher_count', '0');
-        counterEl.textContent = '0';
+    resetBtn.addEventListener('click', async () => {
+      if (confirm('Reset global push counter to 0?')) {
+        updateCounterUI(0, false);
+        if (navigator.onLine) {
+          try {
+            await fetch('/api/reset', { method: 'POST' });
+          } catch {}
+        }
       }
     });
 
@@ -688,10 +747,15 @@
     function updateOnlineStatus() {
       if (navigator.onLine) {
         onlineDot.classList.remove('offline');
-        onlineText.textContent = 'Online (PWA Ready)';
+        onlineText.textContent = 'Online (Live Sync)';
+        connectEventStream();
       } else {
         onlineDot.classList.add('offline');
         onlineText.textContent = 'Offline (Cached)';
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
       }
     }
     window.addEventListener('online', updateOnlineStatus);
@@ -733,6 +797,7 @@
           console.warn('ServiceWorker registration failed:', err);
         });
       });
+      navigator.serviceWorker.ready.then(() => checkPushSubscription());
     }
   </script>
 </body>

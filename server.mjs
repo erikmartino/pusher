@@ -45,8 +45,55 @@ if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
   }
 }
 
+// --- Global State & Persistence ---
+const DATA_FILE = path.join(__dirname, '.data.json');
+let globalCount = 0;
+if (fs.existsSync(DATA_FILE)) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    if (typeof saved.count === 'number' && Number.isFinite(saved.count)) {
+      globalCount = saved.count;
+    }
+  } catch (err) {
+    console.warn('Could not read .data.json:', err.message);
+  }
+}
+
+function saveGlobalCount() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify({ count: globalCount }, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not write .data.json:', err.message);
+  }
+}
+
 // In-memory subscription store: endpoint -> subscription
 const subscriptions = new Map();
+
+// Active SSE client connections for real-time live pusher updates
+const sseClients = new Set();
+
+function broadcastToPushers(type = 'push') {
+  const payload = `data: ${JSON.stringify({ type, count: globalCount, timestamp: Date.now() })}\n\n`;
+  for (const client of sseClients) {
+    try {
+      client.write(payload);
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}
+
+// Keep-alive heartbeat for SSE connections
+setInterval(() => {
+  for (const client of sseClients) {
+    try {
+      client.write(': keep-alive\n\n');
+    } catch {
+      sseClients.delete(client);
+    }
+  }
+}, 20000).unref();
 
 // --- 1. VAPID Header Creation (RFC 8292) ---
 function createVapidAuthHeader(audienceOrigin) {
@@ -219,28 +266,75 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === '/api/broadcast' && req.method === 'POST') {
+  if (url.pathname === '/api/count' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ count: globalCount, activePushers: sseClients.size }));
+  }
+
+  if (url.pathname === '/api/events' && req.method === 'GET') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    // Send initial count immediately upon connection
+    res.write(`data: ${JSON.stringify({ type: 'init', count: globalCount })}\n\n`);
+    sseClients.add(res);
+
+    req.on('close', () => {
+      sseClients.delete(res);
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/reset' && req.method === 'POST') {
+    globalCount = 0;
+    saveGlobalCount();
+    broadcastToPushers('reset');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ count: globalCount, status: 'reset' }));
+  }
+
+  if ((url.pathname === '/api/broadcast' || url.pathname === '/api/push') && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', async () => {
       try {
         const data = body ? JSON.parse(body) : {};
+        const senderEndpoint = data.senderEndpoint || data.endpoint || data.sender;
+
+        // Increment global counter
+        globalCount++;
+        saveGlobalCount();
+
+        // Broadcast updated count in real time to all connected pushers
+        broadcastToPushers('push');
+
+        // Send Web Push notification to subscribed devices (excluding sender)
         const payload = JSON.stringify({
           title: data.title || 'Pusher 🔴',
-          body: data.body || `The Big Red Button was pushed! (Total count: ${data.count || 1})`,
-          url: data.url || './'
+          body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
+          url: data.url || './',
+          tag: data.tag || 'pusher-global-counter',
+          renotify: true,
+          timestamp: Date.now()
         });
 
-        const targets = Array.from(subscriptions.values());
+        const targets = Array.from(subscriptions.values()).filter(
+          sub => !senderEndpoint || sub.endpoint !== senderEndpoint
+        );
         const results = await Promise.allSettled(
           targets.map(sub => sendPushNotification(sub, payload))
         );
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
+          count: globalCount,
           dispatched: targets.length,
           successful: results.filter(r => r.status === 'fulfilled' && (r.value === 201 || r.value === 200 || r.value === 202)).length,
-          activeSubscriptions: subscriptions.size
+          activeSubscriptions: subscriptions.size,
+          activePushers: sseClients.size
         }));
       } catch (err) {
         res.writeHead(500, { 'Content-Type': 'application/json' });

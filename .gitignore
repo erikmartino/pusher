@@ -25,6 +25,7 @@ out/
 *.pem
 *.key
 .vapid.json
+.data.json
 
 # Logs
 *.log

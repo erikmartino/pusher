@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pusher-v1';
+const CACHE_NAME = 'pusher-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -70,11 +70,16 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const tag = data.tag || 'pusher-global-counter';
+
   event.waitUntil(
     self.registration.showNotification(data.title || 'Pusher 🔴', {
       body: data.body,
       icon: './icons/icon-192x192.png',
       badge: './icons/favicon-32x32.png',
+      tag: tag,
+      renotify: data.renotify !== undefined ? data.renotify : true,
+      timestamp: data.timestamp || Date.now(),
       vibrate: [150, 50, 150],
       data: { url: data.url || './' }
     })
