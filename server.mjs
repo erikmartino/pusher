@@ -11,8 +11,40 @@ const __dirname = path.dirname(__filename);
 const toB64Url = (buf) => buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 const fromB64Url = (str) => Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 
+// --- Global State & Persistence Directory ---
+const DATA_DIR = process.env.DATA_DIR || (fs.existsSync('/data') ? '/data' : __dirname);
+try {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+} catch (err) {
+  console.warn(`Could not create DATA_DIR (${DATA_DIR}):`, err.message);
+}
+
+function findConfigFile(filename) {
+  const primary = path.join(DATA_DIR, filename);
+  if (fs.existsSync(primary)) return primary;
+  const fallback = path.join(__dirname, filename);
+  if (fs.existsSync(fallback)) return fallback;
+  return primary;
+}
+
+function safeWriteJson(filePath, data) {
+  try {
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    const tempPath = `${filePath}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempPath, filePath);
+  } catch (err) {
+    console.warn(`Could not write ${path.basename(filePath)}:`, err.message);
+  }
+}
+
 // --- Key Management ---
-const VAPID_KEY_FILE = path.join(__dirname, '.vapid.json');
+const VAPID_KEY_FILE = path.join(DATA_DIR, '.vapid.json');
 let vapidKeys = {
   publicKey: process.env.VAPID_PUBLIC_KEY,
   privateKey: process.env.VAPID_PRIVATE_KEY,
@@ -20,9 +52,10 @@ let vapidKeys = {
 };
 
 if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
-  if (fs.existsSync(VAPID_KEY_FILE)) {
+  const vapidSourceFile = findConfigFile('.vapid.json');
+  if (fs.existsSync(vapidSourceFile)) {
     try {
-      const saved = JSON.parse(fs.readFileSync(VAPID_KEY_FILE, 'utf8'));
+      const saved = JSON.parse(fs.readFileSync(vapidSourceFile, 'utf8'));
       vapidKeys.publicKey = saved.publicKey;
       vapidKeys.privateKey = saved.privateKey;
       vapidKeys.subject = saved.subject || vapidKeys.subject;
@@ -36,64 +69,55 @@ if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
     ecdh.generateKeys();
     vapidKeys.publicKey = toB64Url(ecdh.getPublicKey());
     vapidKeys.privateKey = toB64Url(ecdh.getPrivateKey());
-    try {
-      fs.writeFileSync(VAPID_KEY_FILE, JSON.stringify(vapidKeys, null, 2), 'utf8');
-      console.log('🔑 Generated new VAPID keys and saved to .vapid.json');
-    } catch (err) {
-      console.warn('Could not write .vapid.json:', err.message);
-    }
+    safeWriteJson(VAPID_KEY_FILE, vapidKeys);
+    console.log(`🔑 Generated new VAPID keys and saved to ${VAPID_KEY_FILE}`);
   }
 }
 
-// --- Global State & Persistence ---
-const DATA_FILE = path.join(__dirname, '.data.json');
-const SUBS_FILE = path.join(__dirname, '.subscriptions.json');
+// --- Global State & Persistence Files ---
+const DATA_FILE = path.join(DATA_DIR, '.data.json');
+const SUBS_FILE = path.join(DATA_DIR, '.subscriptions.json');
 
 let globalCount = 0;
-if (fs.existsSync(DATA_FILE)) {
+const dataSourceFile = findConfigFile('.data.json');
+if (fs.existsSync(dataSourceFile)) {
   try {
-    const saved = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    const saved = JSON.parse(fs.readFileSync(dataSourceFile, 'utf8'));
     if (typeof saved.count === 'number' && Number.isFinite(saved.count)) {
       globalCount = saved.count;
+      console.log(`📊 Loaded global count (${globalCount}) from ${dataSourceFile}`);
     }
   } catch (err) {
-    console.warn('Could not read .data.json:', err.message);
+    console.warn(`Could not read ${dataSourceFile}:`, err.message);
   }
 }
 
 function saveGlobalCount() {
-  try {
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ count: globalCount }, null, 2), 'utf8');
-  } catch (err) {
-    console.warn('Could not write .data.json:', err.message);
-  }
+  safeWriteJson(DATA_FILE, { count: globalCount });
 }
 
-// Subscription store: endpoint -> subscription
+// Subscription store: endpoint -> subscription (loaded from and persisted to file)
 const subscriptions = new Map();
 
-if (fs.existsSync(SUBS_FILE)) {
+const subsSourceFile = findConfigFile('.subscriptions.json');
+if (fs.existsSync(subsSourceFile)) {
   try {
-    const savedSubs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+    const savedSubs = JSON.parse(fs.readFileSync(subsSourceFile, 'utf8'));
     if (Array.isArray(savedSubs)) {
       for (const sub of savedSubs) {
         if (sub?.endpoint) {
           subscriptions.set(sub.endpoint, sub);
         }
       }
-      console.log(`📱 Loaded ${subscriptions.size} push subscription(s) from .subscriptions.json`);
+      console.log(`📱 Loaded ${subscriptions.size} push subscription(s) from ${subsSourceFile}`);
     }
   } catch (err) {
-    console.warn('Could not read .subscriptions.json:', err.message);
+    console.warn(`Could not read ${subsSourceFile}:`, err.message);
   }
 }
 
 function saveSubscriptions() {
-  try {
-    fs.writeFileSync(SUBS_FILE, JSON.stringify(Array.from(subscriptions.values()), null, 2), 'utf8');
-  } catch (err) {
-    console.warn('Could not write .subscriptions.json:', err.message);
-  }
+  safeWriteJson(SUBS_FILE, Array.from(subscriptions.values()));
 }
 
 // Active SSE client connections for real-time live pusher updates

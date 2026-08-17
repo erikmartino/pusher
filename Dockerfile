@@ -11,7 +11,10 @@ COPY server.mjs index.html sw.js manifest.json browserconfig.xml .vapid.json* .d
 COPY icons ./icons
 
 ENV PORT=80
+ENV DATA_DIR=/data
 ENV NODE_ENV=production
+
+VOLUME ["/data"]
 
 EXPOSE 80
 

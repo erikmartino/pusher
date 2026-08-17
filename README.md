@@ -27,10 +27,10 @@ A tactile, responsive, installable Progressive Web App (PWA) push button built w
 
 ```bash
 # Using Docker
-docker run -d --name pusher -p 8080:80 ghcr.io/erikmartino/pusher:latest
+docker run -d --name pusher -p 8080:80 -v pusher_data:/data ghcr.io/erikmartino/pusher:latest
 
 # Using Podman
-podman run -d --name pusher -p 8080:80 ghcr.io/erikmartino/pusher:latest
+podman run -d --name pusher -p 8080:80 -v pusher_data:/data ghcr.io/erikmartino/pusher:latest
 ```
 
 Then open [http://localhost:8080](http://localhost:8080) in your browser.
@@ -65,8 +65,8 @@ docker build -t pusher:latest .
 # Using Podman
 podman build -t pusher:latest .
 
-# Run local build
-podman run --rm -p 8080:80 --name pusher pusher:latest
+# Run local build with persistent storage
+podman run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest
 ```
 
 ---

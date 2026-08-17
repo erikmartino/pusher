@@ -8,9 +8,9 @@
     "dev": "PORT=3000 node server.mjs",
     "start": "PORT=8080 node server.mjs",
     "docker:build": "docker build -t pusher:latest .",
-    "docker:run": "docker run --rm -p 8080:80 --name pusher pusher:latest",
+    "docker:run": "docker run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest",
     "podman:build": "podman build -t pusher:latest .",
-    "podman:run": "podman run --rm -p 8080:80 --name pusher pusher:latest"
+    "podman:run": "podman run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest"
   },
   "keywords": [
     "pwa",
