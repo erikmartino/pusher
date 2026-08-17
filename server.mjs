@@ -47,6 +47,8 @@ if (!vapidKeys.publicKey || !vapidKeys.privateKey) {
 
 // --- Global State & Persistence ---
 const DATA_FILE = path.join(__dirname, '.data.json');
+const SUBS_FILE = path.join(__dirname, '.subscriptions.json');
+
 let globalCount = 0;
 if (fs.existsSync(DATA_FILE)) {
   try {
@@ -67,8 +69,32 @@ function saveGlobalCount() {
   }
 }
 
-// In-memory subscription store: endpoint -> subscription
+// Subscription store: endpoint -> subscription
 const subscriptions = new Map();
+
+if (fs.existsSync(SUBS_FILE)) {
+  try {
+    const savedSubs = JSON.parse(fs.readFileSync(SUBS_FILE, 'utf8'));
+    if (Array.isArray(savedSubs)) {
+      for (const sub of savedSubs) {
+        if (sub?.endpoint) {
+          subscriptions.set(sub.endpoint, sub);
+        }
+      }
+      console.log(`📱 Loaded ${subscriptions.size} push subscription(s) from .subscriptions.json`);
+    }
+  } catch (err) {
+    console.warn('Could not read .subscriptions.json:', err.message);
+  }
+}
+
+function saveSubscriptions() {
+  try {
+    fs.writeFileSync(SUBS_FILE, JSON.stringify(Array.from(subscriptions.values()), null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not write .subscriptions.json:', err.message);
+  }
+}
 
 // Active SSE client connections for real-time live pusher updates
 const sseClients = new Set();
@@ -172,21 +198,31 @@ async function sendPushNotification(subscription, payloadText) {
   const encryptedBody = encryptPayload(subscription, payloadText);
   const authHeader = createVapidAuthHeader(endpointUrl.origin);
 
-  const response = await fetch(subscription.endpoint, {
-    method: 'POST',
-    headers: {
-      'TTL': '60',
-      'Content-Encoding': 'aes128gcm',
-      'Content-Type': 'application/octet-stream',
-      'Authorization': authHeader
-    },
-    body: encryptedBody
-  });
+  try {
+    const response = await fetch(subscription.endpoint, {
+      method: 'POST',
+      headers: {
+        'TTL': '60',
+        'Content-Encoding': 'aes128gcm',
+        'Content-Type': 'application/octet-stream',
+        'Authorization': authHeader
+      },
+      body: encryptedBody
+    });
 
-  if (response.status === 404 || response.status === 410) {
-    subscriptions.delete(subscription.endpoint); // Cleanup expired/unregistered subscription
+    if (response.status === 404 || response.status === 410) {
+      console.log(`🧹 Subscription expired/unregistered (${response.status}) for ${endpointUrl.host}. Removing.`);
+      subscriptions.delete(subscription.endpoint);
+      saveSubscriptions();
+    } else if (response.status !== 200 && response.status !== 201 && response.status !== 202) {
+      const errBody = await response.text().catch(() => '');
+      console.warn(`⚠️ Push endpoint ${endpointUrl.host} returned ${response.status}:`, errBody);
+    }
+    return response.status;
+  } catch (err) {
+    console.error(`❌ Failed to send push to ${endpointUrl.host}:`, err.message);
+    return 500;
   }
-  return response.status;
 }
 
 // --- Static File Helper ---
@@ -248,16 +284,53 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/subscribe' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
-    req.on('end', () => {
+    req.on('end', async () => {
       try {
         const sub = JSON.parse(body);
         if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           return res.end(JSON.stringify({ error: 'Invalid subscription structure' }));
         }
+        const isNew = !subscriptions.has(sub.endpoint);
         subscriptions.set(sub.endpoint, sub);
+        saveSubscriptions();
+        console.log(`🔔 Device registered for push notifications (total: ${subscriptions.size})`);
+
+        if (sub.sendConfirmation) {
+          const confirmationPayload = JSON.stringify({
+            title: 'Pusher 🔴',
+            body: 'Push notifications are enabled and ready!',
+            url: './',
+            tag: `pusher-confirm-${Date.now()}`,
+            renotify: true,
+            timestamp: Date.now()
+          });
+          sendPushNotification(sub, confirmationPayload).catch(() => {});
+        }
+
         res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'subscribed', total: subscriptions.size }));
+        res.end(JSON.stringify({ status: 'subscribed', total: subscriptions.size, isNew }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (url.pathname === '/api/unsubscribe' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        if (data?.endpoint) {
+          subscriptions.delete(data.endpoint);
+          saveSubscriptions();
+          console.log(`🔕 Device unsubscribed (total: ${subscriptions.size})`);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'unsubscribed', total: subscriptions.size }));
       } catch (err) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: err.message }));
@@ -268,7 +341,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/api/count' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ count: globalCount, activePushers: sseClients.size }));
+    return res.end(JSON.stringify({ count: globalCount, activePushers: sseClients.size, activeSubscriptions: subscriptions.size }));
   }
 
   if (url.pathname === '/api/events' && req.method === 'GET') {
@@ -311,28 +384,35 @@ const server = http.createServer((req, res) => {
         // Broadcast updated count in real time to all connected pushers
         broadcastToPushers('push');
 
-        // Send Web Push notification to subscribed devices (excluding sender)
+        // Send Web Push notification to subscribed devices
         const payload = JSON.stringify({
           title: data.title || 'Pusher 🔴',
           body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
           url: data.url || './',
-          tag: data.tag || 'pusher-global-counter',
+          tag: data.tag || `pusher-push-${Date.now()}`,
           renotify: true,
           timestamp: Date.now()
         });
 
+        // Broadcast to all subscribed devices (or exclude sender ONLY if explicitly set)
         const targets = Array.from(subscriptions.values()).filter(
-          sub => !senderEndpoint || sub.endpoint !== senderEndpoint
+          sub => !data.excludeSender || !senderEndpoint || sub.endpoint !== senderEndpoint
         );
         const results = await Promise.allSettled(
           targets.map(sub => sendPushNotification(sub, payload))
         );
 
+        const successful = results.filter(
+          r => r.status === 'fulfilled' && (r.value === 201 || r.value === 200 || r.value === 202)
+        ).length;
+
+        console.log(`📡 Dispatched push to ${targets.length} subscriber(s) (${successful} succeeded)`);
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
           count: globalCount,
           dispatched: targets.length,
-          successful: results.filter(r => r.status === 'fulfilled' && (r.value === 201 || r.value === 200 || r.value === 202)).length,
+          successful,
           activeSubscriptions: subscriptions.size,
           activePushers: sseClients.size
         }));

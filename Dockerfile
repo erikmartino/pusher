@@ -6,8 +6,8 @@ LABEL org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
 
-# Copy server and static application files
-COPY server.mjs index.html sw.js manifest.json browserconfig.xml ./
+# Copy server, static application files, and optional persistent configuration
+COPY server.mjs index.html sw.js manifest.json browserconfig.xml .vapid.json* .data.json* .subscriptions.json* ./
 COPY icons ./icons
 
 ENV PORT=80

@@ -26,6 +26,7 @@ out/
 *.key
 .vapid.json
 .data.json
+.subscriptions.json
 
 # Logs
 *.log

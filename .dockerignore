@@ -3,4 +3,3 @@
 manifest-source
 *.log
 .DS_Store
-.vapid.json

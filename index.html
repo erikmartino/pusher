@@ -573,6 +573,14 @@
       return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
     }
 
+    function areUint8ArraysEqual(a, b) {
+      if (!a || !b || a.byteLength !== b.byteLength) return false;
+      for (let i = 0; i < a.byteLength; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
+
     // Push Notifications Management
     let isPushSubscribed = false;
     let currentSubscription = null;
@@ -585,7 +593,46 @@
       try {
         const reg = await navigator.serviceWorker.ready;
         currentSubscription = await reg.pushManager.getSubscription();
-        isPushSubscribed = !!currentSubscription;
+
+        if (Notification.permission === 'granted') {
+          try {
+            const keyRes = await fetch('/api/vapid-public-key');
+            if (keyRes.ok) {
+              const { publicKey } = await keyRes.json();
+              const serverKeyBytes = urlBase64ToUint8Array(publicKey);
+
+              if (currentSubscription) {
+                const clientKeyBytes = currentSubscription.options?.applicationServerKey ? new Uint8Array(currentSubscription.options.applicationServerKey) : null;
+                if (!clientKeyBytes || !areUint8ArraysEqual(serverKeyBytes, clientKeyBytes)) {
+                  console.log('🔄 VAPID key updated on server, re-subscribing client...');
+                  await currentSubscription.unsubscribe().catch(() => {});
+                  currentSubscription = await reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: serverKeyBytes
+                  });
+                }
+              } else {
+                currentSubscription = await reg.pushManager.subscribe({
+                  userVisibleOnly: true,
+                  applicationServerKey: serverKeyBytes
+                });
+              }
+
+              // Keep server subscription store in sync
+              if (currentSubscription) {
+                await fetch('/api/subscribe', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(currentSubscription)
+                }).catch(() => {});
+              }
+            }
+          } catch (fetchErr) {
+            console.warn('Could not sync push subscription with server:', fetchErr);
+          }
+        }
+
+        isPushSubscribed = !!currentSubscription && Notification.permission === 'granted';
         notifyToggle.classList.toggle('active', isPushSubscribed);
       } catch (err) {
         console.warn('Failed to check push subscription:', err);
@@ -602,7 +649,16 @@
 
       if (isPushSubscribed) {
         const sub = await reg.pushManager.getSubscription();
-        if (sub) await sub.unsubscribe();
+        if (sub) {
+          try {
+            await fetch('/api/unsubscribe', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ endpoint: sub.endpoint })
+            });
+          } catch {}
+          await sub.unsubscribe();
+        }
         currentSubscription = null;
         isPushSubscribed = false;
         notifyToggle.classList.remove('active');
@@ -628,7 +684,10 @@
         await fetch('/api/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subscription)
+          body: JSON.stringify({
+            ...subscription.toJSON(),
+            sendConfirmation: true
+          })
         });
 
         currentSubscription = subscription;
@@ -672,9 +731,7 @@
         fetch('/api/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            senderEndpoint: currentSubscription ? currentSubscription.endpoint : undefined
-          })
+          body: JSON.stringify({})
         })
         .then(res => res.json())
         .then(data => {
