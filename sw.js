@@ -70,7 +70,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const tag = data.tag || 'pusher-global-counter';
+  const tag = data.tag || 'dk.profundo.pusher.push';
 
   event.waitUntil(
     self.registration.showNotification(data.title || 'Pusher 🔴', {
