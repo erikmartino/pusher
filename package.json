@@ -7,9 +7,9 @@
   "scripts": {
     "dev": "PORT=3000 node server.mjs",
     "start": "PORT=8080 node server.mjs",
-    "docker:build": "docker build -t pusher:latest .",
+    "docker:build": "docker build --build-arg COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo '') -t pusher:latest .",
     "docker:run": "docker run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest",
-    "podman:build": "podman build -t pusher:latest .",
+    "podman:build": "podman build --build-arg COMMIT_SHA=$(git rev-parse HEAD 2>/dev/null || echo '') -t pusher:latest .",
     "podman:run": "podman run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest"
   },
   "keywords": [

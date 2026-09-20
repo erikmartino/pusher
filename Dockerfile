@@ -10,6 +10,11 @@ WORKDIR /app
 COPY server.mjs index.html sw.js manifest.json browserconfig.xml .vapid.json* .data.json* .subscriptions.json* ./
 COPY icons ./icons
 
+ARG COMMIT_SHA=""
+RUN if [ -n "$COMMIT_SHA" ]; then \
+      sed -i -E "s|https://github.com/erikmartino/pusher(/commit/[^\"]*)?|https://github.com/erikmartino/pusher/commit/${COMMIT_SHA}|g" index.html; \
+    fi
+
 ENV PORT=80
 ENV DATA_DIR=/data
 ENV NODE_ENV=production
