@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pusher-v4';
+const CACHE_NAME = 'pusher-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -59,7 +59,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push notification received
+// Push notification received (Pure PWA grouping & aggregation)
 self.addEventListener('push', (event) => {
   let data = { title: 'Pusher 🔴', body: 'The button was pushed!' };
   if (event.data) {
@@ -73,15 +73,51 @@ self.addEventListener('push', (event) => {
   const tag = data.tag || 'dk.profundo.pusher.push';
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Pusher 🔴', {
-      body: data.body,
-      icon: './icons/icon-192x192.png',
-      badge: './icons/favicon-32x32.png',
-      tag: tag,
-      renotify: data.renotify !== undefined ? data.renotify : true,
-      timestamp: data.timestamp || Date.now(),
-      vibrate: [150, 50, 150],
-      data: { url: data.url || './' }
+    self.registration.getNotifications({ tag }).then((notifications) => {
+      let count = 1;
+      let history = [];
+
+      if (notifications && notifications.length > 0) {
+        const active = notifications[0];
+        if (active.data && typeof active.data.count === 'number') {
+          count = active.data.count + 1;
+        } else {
+          count = 2;
+        }
+        if (active.data && Array.isArray(active.data.history)) {
+          history = [...active.data.history];
+        }
+      }
+
+      if (data.body) {
+        history.push(data.body);
+      }
+      if (history.length > 3) {
+        history = history.slice(-3);
+      }
+
+      let title = data.title || 'Pusher 🔴';
+      let body = data.body;
+
+      if (count > 1) {
+        title = `Pusher 🔴 (${count} pushes)`;
+        body = history.join('\n');
+      }
+
+      return self.registration.showNotification(title, {
+        body: body,
+        icon: './icons/icon-192x192.png',
+        badge: './icons/favicon-32x32.png',
+        tag: tag,
+        renotify: data.renotify !== undefined ? data.renotify : true,
+        timestamp: data.timestamp || Date.now(),
+        vibrate: [150, 50, 150],
+        data: {
+          url: data.url || './',
+          count: count,
+          history: history
+        }
+      });
     })
   );
 });

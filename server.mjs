@@ -325,7 +325,7 @@ const server = http.createServer((req, res) => {
             title: 'Pusher 🔴',
             body: 'Push notifications are enabled and ready!',
             url: './',
-            tag: `pusher-confirm-${Date.now()}`,
+            tag: sub.tag || 'pusher-confirm',
             renotify: true,
             timestamp: Date.now()
           });
@@ -413,7 +413,7 @@ const server = http.createServer((req, res) => {
           title: data.title || 'Pusher 🔴',
           body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
           url: data.url || './',
-          tag: data.tag || `pusher-push-${Date.now()}`,
+          tag: data.tag || 'dk.profundo.pusher.push',
           renotify: true,
           timestamp: Date.now()
         });
