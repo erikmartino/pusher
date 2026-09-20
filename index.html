@@ -51,18 +51,27 @@
       --success: #10b981;
     }
 
+    html {
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background-color: var(--bg);
       color: var(--text-main);
-      min-height: 100vh;
-      min-height: 100dvh;
+      height: 100%;
+      height: 100dvh;
+      width: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: space-between;
-      overflow-x: hidden;
-      padding: env(safe-area-inset-top, 16px) env(safe-area-inset-right, 16px) env(safe-area-inset-bottom, 16px) env(safe-area-inset-left, 16px);
+      overflow: hidden;
+      overscroll-behavior: none;
+      padding: env(safe-area-inset-top, 8px) env(safe-area-inset-right, 12px) env(safe-area-inset-bottom, 8px) env(safe-area-inset-left, 12px);
       background-image: 
         radial-gradient(ellipse 70% 50% at 50% 0%, rgba(229, 45, 39, 0.12), transparent 70%),
         radial-gradient(ellipse 60% 50% at 50% 100%, rgba(30, 41, 59, 0.4), transparent);
@@ -74,8 +83,8 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      margin-top: 4px;
+      padding: 8px 12px;
+      flex-shrink: 0;
     }
 
     .brand {
@@ -145,9 +154,10 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: space-evenly;
       flex: 1;
-      padding: 10px 0;
+      min-height: 0;
+      overflow: hidden;
     }
 
     /* Stats Display */
@@ -155,13 +165,11 @@
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 20px;
-      padding: 14px 28px;
+      padding: 0.75rem 2rem;
       text-align: center;
-      margin-bottom: 24px;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
       backdrop-filter: blur(12px);
-      width: 86%;
-      max-width: 320px;
+      flex: 0 0 auto;
     }
 
     .counter-label {
@@ -175,7 +183,7 @@
 
     .counter-number {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 3rem;
+      font-size: 2.5rem;
       font-weight: 700;
       line-height: 1.1;
       letter-spacing: -0.04em;
@@ -192,19 +200,18 @@
     /* Button Area */
     .button-stage {
       position: relative;
+      flex: 1;
+      min-height: 0;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 100%;
-      max-width: 320px;
-      aspect-ratio: 1;
-      margin: 10px 0;
     }
 
     .button-glow {
       position: absolute;
-      width: 75%;
-      height: 75%;
+      width: 65%;
+      height: 65%;
       background: var(--accent-glow);
       filter: blur(40px);
       border-radius: 50%;
@@ -217,6 +224,8 @@
       position: relative;
       width: 100%;
       height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       background: none;
       border: none;
       cursor: pointer;
@@ -231,6 +240,8 @@
     .push-target img {
       width: 100%;
       height: 100%;
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
       pointer-events: none;
       filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.6));
@@ -257,11 +268,11 @@
     .key-hint {
       font-size: 0.78rem;
       color: var(--text-muted);
-      margin-top: 14px;
       font-weight: 500;
       display: flex;
       align-items: center;
       gap: 6px;
+      flex: 0 0 auto;
     }
 
     .kbd {
@@ -281,8 +292,9 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      padding: 8px 16px;
+      gap: 0.75rem;
+      flex: 0 0 auto;
+      padding: 0.5rem 0;
     }
 
     .pwa-install-banner {
@@ -290,12 +302,13 @@
       background: linear-gradient(135deg, rgba(229, 45, 39, 0.2), rgba(22, 29, 44, 0.8));
       border: 1px solid rgba(229, 45, 39, 0.4);
       border-radius: 14px;
-      padding: 10px 14px;
+      padding: 8px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       backdrop-filter: blur(10px);
       animation: fadeIn 0.3s ease;
+      flex-shrink: 0;
     }
 
     .install-text {
@@ -325,9 +338,10 @@
       align-items: center;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       font-size: 0.72rem;
       color: var(--text-muted);
+      text-align: center;
     }
 
     .github-link {
@@ -367,19 +381,6 @@
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
-    }
-
-    @media (max-height: 640px) {
-      .button-stage {
-        max-width: 220px;
-      }
-      .counter-number {
-        font-size: 2.2rem;
-      }
-      .counter-board {
-        padding: 8px 18px;
-        margin-bottom: 12px;
-      }
     }
   </style>
 </head>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pusher-v6';
+const CACHE_NAME = 'pusher-v7';
 const ASSETS = [
   './',
   './index.html',
