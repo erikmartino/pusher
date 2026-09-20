@@ -3,3 +3,7 @@
 manifest-source
 *.log
 .DS_Store
+.vapid.json*
+.data.json*
+.subscriptions.json*
+*.tmp*

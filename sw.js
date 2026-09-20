@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pusher-v7';
+const CACHE_NAME = 'pusher-v8';
 const ASSETS = [
   './',
   './index.html',
@@ -59,6 +59,23 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Validate URL strictly against the service worker origin to prevent external open redirects
+function getSafeNotificationUrl(targetUrl) {
+  const fallback = './';
+  if (!targetUrl || typeof targetUrl !== 'string') {
+    return fallback;
+  }
+  try {
+    const resolved = new URL(targetUrl, self.location.origin);
+    if (resolved.origin === self.location.origin) {
+      return resolved.href;
+    }
+  } catch {
+    // Fallback on malformed URL
+  }
+  return fallback;
+}
+
 // Push notification received (Pure PWA grouping & aggregation)
 self.addEventListener('push', (event) => {
   let data = { title: 'Pusher 🔴', body: 'The button was pushed!' };
@@ -113,7 +130,7 @@ self.addEventListener('push', (event) => {
         timestamp: data.timestamp || Date.now(),
         vibrate: [150, 50, 150],
         data: {
-          url: data.url || './',
+          url: getSafeNotificationUrl(data.url),
           count: count,
           history: history
         }
@@ -125,7 +142,8 @@ self.addEventListener('push', (event) => {
 // User clicked the notification
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.url || './';
+  const rawUrl = event.notification.data?.url;
+  const urlToOpen = getSafeNotificationUrl(rawUrl);
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

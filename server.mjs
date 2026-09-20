@@ -2,6 +2,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import net from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -96,8 +97,114 @@ function saveGlobalCount() {
   safeWriteJson(DATA_FILE, { count: globalCount });
 }
 
+// Maximum stored push subscriptions (Memory DoS prevention)
+const MAX_SUBSCRIPTIONS = 5000;
+
 // Subscription store: endpoint -> subscription (loaded from and persisted to file)
 const subscriptions = new Map();
+
+// --- SSRF & Push Endpoint Validation ---
+function isValidPushEndpoint(endpointStr) {
+  if (typeof endpointStr !== 'string' || !endpointStr.trim()) {
+    return false;
+  }
+  let parsed;
+  try {
+    parsed = new URL(endpointStr);
+  } catch {
+    return false;
+  }
+
+  const allowLocal = process.env.NODE_ENV === 'development' || process.env.ALLOW_LOCAL_PUSH === 'true';
+  if (allowLocal) {
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && Boolean(parsed.hostname);
+  }
+
+  // Protocol must strictly be https:
+  if (parsed.protocol !== 'https:') {
+    return false;
+  }
+
+  const rawHost = parsed.hostname.toLowerCase();
+  const hostname = rawHost.replace(/^\[|\]$/g, '');
+  if (!hostname) return false;
+
+  // Hostname must NOT be localhost or end with local/internal domain
+  if (
+    hostname === 'localhost' ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal')
+  ) {
+    return false;
+  }
+
+  // Reject loopback, link-local metadata (169.254.x.x), and private IP ranges
+  const ipType = net.isIP(hostname);
+  if (ipType === 4) {
+    const parts = hostname.split('.').map(Number);
+    if (parts.length !== 4 || parts.some(p => isNaN(p) || p < 0 || p > 255)) {
+      return false;
+    }
+    const [b0, b1] = parts;
+    // 0.0.0.0/8 (current network)
+    if (b0 === 0) return false;
+    // 127.0.0.0/8 (loopback)
+    if (b0 === 127) return false;
+    // 10.0.0.0/8 (private)
+    if (b0 === 10) return false;
+    // 172.16.0.0/12 (private: 172.16.0.0 - 172.31.255.255)
+    if (b0 === 172 && b1 >= 16 && b1 <= 31) return false;
+    // 192.168.0.0/16 (private)
+    if (b0 === 192 && b1 === 168) return false;
+    // 169.254.0.0/16 (link-local / cloud metadata service)
+    if (b0 === 169 && b1 === 254) return false;
+    // 100.64.0.0/10 (carrier-grade NAT)
+    if (b0 === 100 && b1 >= 64 && b1 <= 127) return false;
+    // Broadcast
+    if (hostname === '255.255.255.255') return false;
+  } else if (ipType === 6) {
+    // IPv6 loopback / unspecified
+    if (hostname === '::1' || hostname === '::' || hostname === '0:0:0:0:0:0:0:1' || hostname === '0:0:0:0:0:0:0:0') {
+      return false;
+    }
+    // Link-local (fe80::/10) or unique local address (fc00::/7)
+    if (/^fe[89ab]/i.test(hostname) || /^f[cd]/i.test(hostname)) {
+      return false;
+    }
+    // IPv4-mapped IPv6
+    if (hostname.startsWith('::ffff:')) {
+      const v4part = hostname.slice(7);
+      if (net.isIP(v4part) === 4) {
+        return isValidPushEndpoint(`https://${v4part}/`);
+      }
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Sanitize URL for broadcast notifications (Relative path only, prevents open redirects)
+function sanitizeRelativeUrl(rawUrl, fallback = './') {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return fallback;
+  }
+  const trimmed = rawUrl.trim();
+  // Reject URLs with explicit schemes (e.g. https:, http:, javascript:, data:)
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    return fallback;
+  }
+  // Reject protocol-relative URLs (//) or backslash variants (/\, \\)
+  if (trimmed.startsWith('//') || trimmed.startsWith('/\\') || trimmed.startsWith('\\\\')) {
+    return fallback;
+  }
+  // Must start with './' or '/' (single slash)
+  if (trimmed.startsWith('./') || (trimmed.startsWith('/') && !trimmed.startsWith('//'))) {
+    return trimmed;
+  }
+  return fallback;
+}
 
 const subsSourceFile = findConfigFile('.subscriptions.json');
 if (fs.existsSync(subsSourceFile)) {
@@ -105,8 +212,9 @@ if (fs.existsSync(subsSourceFile)) {
     const savedSubs = JSON.parse(fs.readFileSync(subsSourceFile, 'utf8'));
     if (Array.isArray(savedSubs)) {
       for (const sub of savedSubs) {
-        if (sub?.endpoint) {
+        if (sub?.endpoint && isValidPushEndpoint(sub.endpoint)) {
           subscriptions.set(sub.endpoint, sub);
+          if (subscriptions.size >= MAX_SUBSCRIPTIONS) break;
         }
       }
       console.log(`📱 Loaded ${subscriptions.size} push subscription(s) from ${subsSourceFile}`);
@@ -227,9 +335,11 @@ async function sendPushNotification(subscription, payloadText) {
       method: 'POST',
       headers: {
         'TTL': '60',
+        'Urgency': 'high',
         'Content-Encoding': 'aes128gcm',
         'Content-Type': 'application/octet-stream',
-        'Authorization': authHeader
+        'Authorization': authHeader,
+        'Crypto-Key': `p256ecdsa=${vapidKeys.publicKey}`
       },
       body: encryptedBody
     });
@@ -261,8 +371,62 @@ const MIME_TYPES = {
   '.xml': 'application/xml; charset=utf-8'
 };
 
-function serveStatic(reqMethod, reqPath, res) {
-  let filePath = path.join(__dirname, reqPath === '/' ? 'index.html' : reqPath);
+// Files that must never be served statically
+const BLOCKED_STATIC_FILES = new Set([
+  'server.mjs',
+  'dockerfile',
+  '.dockerignore',
+  '.gitignore',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'readme.md'
+]);
+
+function serveStatic(reqMethod, reqPath, res, rawUrl = "") {
+  let decodedPath;
+  let decodedRaw;
+  try {
+    decodedPath = decodeURIComponent(reqPath);
+    decodedRaw = decodeURIComponent((rawUrl.split('?')[0] || reqPath));
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('400 Bad Request');
+  }
+
+  // Reject null bytes
+  if (decodedPath.includes('\0') || decodedRaw.includes('\0')) {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    return res.end('400 Bad Request');
+  }
+
+  // Reject any request where the path or any path segment starts with '.'
+  const segments = [
+    ...decodedPath.split(/[/\\]+/).filter(Boolean),
+    ...decodedRaw.split(/[/\\]+/).filter(Boolean)
+  ];
+  if (segments.some(segment => segment.startsWith('.'))) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('403 Forbidden');
+  }
+
+  const safeBaseDir = path.resolve(__dirname);
+  const relativeFile = decodedPath === '/' || decodedPath === '' ? 'index.html' : decodedPath.replace(/^[/\\]+/, '');
+  const filePath = path.resolve(safeBaseDir, relativeFile);
+
+  // Verify that the resolved target filePath starts with __dirname (Path Traversal prevention)
+  if (!filePath.startsWith(safeBaseDir + path.sep) && filePath !== safeBaseDir) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('403 Forbidden');
+  }
+
+  // Explicitly block serving backend files
+  const baseName = path.basename(filePath).toLowerCase();
+  if (BLOCKED_STATIC_FILES.has(baseName) || baseName.endsWith('.mjs')) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('403 Forbidden');
+  }
+
   const ext = path.extname(filePath).toLowerCase();
 
   fs.stat(filePath, (err, stats) => {
@@ -285,9 +449,63 @@ function serveStatic(reqMethod, reqPath, res) {
   });
 }
 
+// --- Request Body Parsing Helper (64KB DoS Prevention) ---
+const MAX_BODY_SIZE = 65536; // 64KB
+
+function parseJsonBody(req, res, maxSize = MAX_BODY_SIZE) {
+  return new Promise((resolve, reject) => {
+    let size = 0;
+    const chunks = [];
+    let handled = false;
+
+    req.on('data', chunk => {
+      if (handled) return;
+      size += chunk.length;
+      if (size > maxSize) {
+        handled = true;
+        req.pause();
+        if (!res.headersSent) {
+          res.writeHead(413, { 'Content-Type': 'application/json', 'Connection': 'close' });
+          res.end(JSON.stringify({ error: 'Payload Too Large' }), () => {
+            req.socket?.destroy();
+          });
+        } else {
+          req.socket?.destroy();
+        }
+        const err = new Error('Payload Too Large');
+        err.statusCode = 413;
+        reject(err);
+      } else {
+        chunks.push(chunk);
+      }
+    });
+
+    req.on('end', () => {
+      if (handled) return;
+      try {
+        const raw = Buffer.concat(chunks).toString('utf8').trim();
+        const data = raw ? JSON.parse(raw) : {};
+        resolve(data);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.writeHead(400, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid JSON' }));
+        }
+        const parseErr = new Error('Invalid JSON');
+        parseErr.statusCode = 400;
+        reject(parseErr);
+      }
+    });
+
+    req.on('error', (err) => {
+      if (!handled) reject(err);
+    });
+  });
+}
+
 // --- HTTP Server ---
 const PORT = process.env.PORT || 8080;
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -306,60 +524,74 @@ const server = http.createServer((req, res) => {
   }
 
   if (url.pathname === '/api/subscribe' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const sub = JSON.parse(body);
-        if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          return res.end(JSON.stringify({ error: 'Invalid subscription structure' }));
-        }
-        const isNew = !subscriptions.has(sub.endpoint);
-        subscriptions.set(sub.endpoint, sub);
-        saveSubscriptions();
-        console.log(`🔔 Device registered for push notifications (total: ${subscriptions.size})`);
+    let sub;
+    try {
+      sub = await parseJsonBody(req, res);
+    } catch {
+      return;
+    }
 
-        if (sub.sendConfirmation) {
-          const confirmationPayload = JSON.stringify({
-            title: 'Pusher 🔴',
-            body: 'Push notifications are enabled and ready!',
-            url: './',
-            tag: sub.tag || 'pusher-confirm',
-            renotify: true,
-            timestamp: Date.now()
-          });
-          sendPushNotification(sub, confirmationPayload).catch(() => {});
-        }
-
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'subscribed', total: subscriptions.size, isNew }));
-      } catch (err) {
+    try {
+      if (!sub?.endpoint || !sub?.keys?.p256dh || !sub?.keys?.auth) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+        return res.end(JSON.stringify({ error: 'Invalid subscription structure' }));
       }
-    });
+
+      if (!isValidPushEndpoint(sub.endpoint)) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid or forbidden subscription endpoint' }));
+      }
+
+      const isNew = !subscriptions.has(sub.endpoint);
+      if (isNew && subscriptions.size >= MAX_SUBSCRIPTIONS) {
+        const oldestKey = subscriptions.keys().next().value;
+        subscriptions.delete(oldestKey);
+      }
+      subscriptions.set(sub.endpoint, sub);
+      saveSubscriptions();
+      console.log(`🔔 Device registered for push notifications (total: ${subscriptions.size})`);
+
+      if (sub.sendConfirmation) {
+        const confirmationPayload = JSON.stringify({
+          title: 'Pusher 🔴',
+          body: 'Push notifications are enabled and ready!',
+          url: sanitizeRelativeUrl(sub.url, './'),
+          tag: sub.tag || 'pusher-confirm',
+          renotify: true,
+          timestamp: Date.now()
+        });
+        sendPushNotification(sub, confirmationPayload).catch(() => {});
+      }
+
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'subscribed', total: subscriptions.size, isNew }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
   if (url.pathname === '/api/unsubscribe' && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      try {
-        const data = JSON.parse(body);
-        if (data?.endpoint) {
-          subscriptions.delete(data.endpoint);
-          saveSubscriptions();
-          console.log(`🔕 Device unsubscribed (total: ${subscriptions.size})`);
-        }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'unsubscribed', total: subscriptions.size }));
-      } catch (err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
+    let data;
+    try {
+      data = await parseJsonBody(req, res);
+    } catch {
+      return;
+    }
+
+    try {
+      if (data?.endpoint) {
+        subscriptions.delete(data.endpoint);
+        saveSubscriptions();
+        console.log(`🔕 Device unsubscribed (total: ${subscriptions.size})`);
       }
-    });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'unsubscribed', total: subscriptions.size }));
+    } catch (err) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
@@ -394,63 +626,68 @@ const server = http.createServer((req, res) => {
   }
 
   if ((url.pathname === '/api/broadcast' || url.pathname === '/api/push') && req.method === 'POST') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const data = body ? JSON.parse(body) : {};
-        const senderEndpoint = data.senderEndpoint || data.endpoint || data.sender;
+    let data;
+    try {
+      data = await parseJsonBody(req, res);
+    } catch {
+      return;
+    }
 
-        // Increment global counter
-        globalCount++;
-        saveGlobalCount();
+    try {
+      const senderEndpoint = data.senderEndpoint || data.endpoint || data.sender;
 
-        // Broadcast updated count in real time to all connected pushers
-        broadcastToPushers('push');
+      // Increment global counter
+      globalCount++;
+      saveGlobalCount();
 
-        // Send Web Push notification to subscribed devices
-        const payload = JSON.stringify({
-          title: data.title || 'Pusher 🔴',
-          body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
-          url: data.url || './',
-          tag: data.tag || 'pusher',
-          renotify: true,
-          timestamp: Date.now()
-        });
+      // Broadcast updated count in real time to all connected pushers
+      broadcastToPushers('push');
 
-        // Broadcast to all subscribed devices (or exclude sender ONLY if explicitly set)
-        const targets = Array.from(subscriptions.values()).filter(
-          sub => !data.excludeSender || !senderEndpoint || sub.endpoint !== senderEndpoint
-        );
-        const results = await Promise.allSettled(
-          targets.map(sub => sendPushNotification(sub, payload))
-        );
+      // Sanitize broadcast notification URL
+      const sanitizedUrl = sanitizeRelativeUrl(data.url, './');
 
-        const successful = results.filter(
-          r => r.status === 'fulfilled' && (r.value === 201 || r.value === 200 || r.value === 202)
-        ).length;
+      // Send Web Push notification to subscribed devices
+      const payload = JSON.stringify({
+        title: data.title || 'Pusher 🔴',
+        body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
+        url: sanitizedUrl,
+        tag: data.tag || 'pusher',
+        renotify: true,
+        timestamp: Date.now()
+      });
 
-        console.log(`📡 Dispatched push to ${targets.length} subscriber(s) (${successful} succeeded)`);
+      // Broadcast to all subscribed devices (or exclude sender ONLY if explicitly set)
+      const targets = Array.from(subscriptions.values()).filter(
+        sub => !data.excludeSender || !senderEndpoint || sub.endpoint !== senderEndpoint
+      );
+      const results = await Promise.allSettled(
+        targets.map(sub => sendPushNotification(sub, payload))
+      );
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          count: globalCount,
-          dispatched: targets.length,
-          successful,
-          activeSubscriptions: subscriptions.size,
-          activePushers: sseClients.size
-        }));
-      } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
+      const successful = results.filter(
+        r => r.status === 'fulfilled' && (r.value === 201 || r.value === 200 || r.value === 202)
+      ).length;
+
+      console.log(`📡 Dispatched push to ${targets.length} subscriber(s) (${successful} succeeded)`);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        count: globalCount,
+        dispatched: targets.length,
+        successful,
+        activeSubscriptions: subscriptions.size,
+        activePushers: sseClients.size
+      }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
     return;
   }
 
   // Static files
   if (req.method === 'GET' || req.method === 'HEAD') {
-    return serveStatic(req.method, url.pathname, res);
+    return serveStatic(req.method, url.pathname, res, req.url);
   }
 
   res.writeHead(404).end();
