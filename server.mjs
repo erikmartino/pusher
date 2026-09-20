@@ -413,7 +413,7 @@ const server = http.createServer((req, res) => {
           title: data.title || 'Pusher 🔴',
           body: data.body || `The Big Red Button was pushed! (Total count: ${globalCount})`,
           url: data.url || './',
-          tag: data.tag || 'dk.profundo.pusher.push',
+          tag: data.tag || 'pusher',
           renotify: true,
           timestamp: Date.now()
         });

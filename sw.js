@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pusher-v5';
+const CACHE_NAME = 'pusher-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -70,7 +70,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const tag = data.tag || 'dk.profundo.pusher.push';
+  const tag = data.tag || 'pusher';
 
   event.waitUntil(
     self.registration.getNotifications({ tag }).then((notifications) => {
