@@ -886,13 +886,14 @@
       navigator.serviceWorker.ready.then(() => checkPushSubscription());
     }
 
-    // Dynamic commit link title
+    // Dynamic tree/commit link title
     const githubLink = document.getElementById('githubLink');
-    if (githubLink && githubLink.href.includes('/commit/')) {
-      const shaMatch = githubLink.href.match(/\/commit\/([a-f0-9]+)/i);
-      if (shaMatch && shaMatch[1]) {
-        const shortSha = shaMatch[1].slice(0, 7);
-        githubLink.title = `Commit ${shortSha} on GitHub`;
+    if (githubLink && (githubLink.href.includes('/tree/') || githubLink.href.includes('/commit/'))) {
+      const match = githubLink.href.match(/\/(tree|commit)\/([^"/]+)/i);
+      if (match && match[2]) {
+        const ref = match[2];
+        const isSha = /^[a-f0-9]{7,40}$/i.test(ref);
+        githubLink.title = isSha ? `Commit ${ref.slice(0, 7)} on GitHub` : `Release ${ref} on GitHub`;
       }
     }
   </script>

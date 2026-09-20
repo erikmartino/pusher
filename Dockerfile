@@ -10,9 +10,11 @@ WORKDIR /app
 COPY server.mjs index.html sw.js manifest.json browserconfig.xml LICENSE* .vapid.json* .data.json* .subscriptions.json* ./
 COPY icons ./icons
 
+ARG GIT_REF=""
 ARG COMMIT_SHA=""
-RUN if [ -n "$COMMIT_SHA" ]; then \
-      sed -i -E "s|https://github.com/erikmartino/pusher(/commit/[^\"]*)?|https://github.com/erikmartino/pusher/commit/${COMMIT_SHA}|g" index.html; \
+RUN REF="${GIT_REF:-$COMMIT_SHA}"; \
+    if [ -n "$REF" ]; then \
+      sed -i -E "s#https://github.com/erikmartino/pusher(/(tree|commit)/[^\"]*)?#https://github.com/erikmartino/pusher/tree/${REF}#g" index.html; \
     fi
 
 ENV PORT=80

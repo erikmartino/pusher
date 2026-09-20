@@ -49,9 +49,16 @@ jobs:
             type=raw,value=${{ steps.versioning.outputs.version }}
             type=sha,format=short
 
-      - name: Inject commit SHA into index.html
+      - name: Inject GitHub release tree link into index.html
         run: |
-          sed -i -E "s|https://github.com/erikmartino/pusher(/commit/[^\"]*)?|https://github.com/erikmartino/pusher/commit/${{ github.sha }}|g" index.html
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_REF="${{ github.ref_name }}"
+          else
+            TAG_REF="${{ steps.versioning.outputs.version }}"
+          fi
+          TREE_URL="https://github.com/${{ github.repository }}/tree/${TAG_REF}"
+          sed -i -E "s#https://github.com/erikmartino/pusher(/(tree|commit)/[^\"]*)?#${TREE_URL}#g" index.html
+          echo "Injected GitHub tree URL: ${TREE_URL}"
 
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v6
@@ -61,7 +68,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            COMMIT_SHA=${{ github.sha }}
+            GIT_REF=${{ github.ref_type == 'tag' && github.ref_name || steps.versioning.outputs.version }}
 
       - name: Create and push git release tag
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
