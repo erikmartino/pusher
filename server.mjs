@@ -436,11 +436,16 @@ function serveStatic(reqMethod, reqPath, res, rawUrl = "") {
     }
 
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    res.writeHead(200, {
+    const responseHeaders = {
       'Content-Type': contentType,
       'Content-Length': stats.size,
       'Cache-Control': ext === '.html' || ext === '.js' ? 'no-cache' : 'public, max-age=86400'
-    });
+    };
+    if (ext === '.html') {
+      responseHeaders['Link'] = '</.well-known/webmcp.json>; rel="webmcp"';
+      responseHeaders['X-WebMCP'] = 'enabled';
+    }
+    res.writeHead(200, responseHeaders);
 
     if (reqMethod === 'HEAD') {
       return res.end();
@@ -518,6 +523,79 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
 
   // API Endpoints
+  // WebMCP Discovery Manifest
+  if ((url.pathname === '/.well-known/webmcp.json' || url.pathname === '/.well-known/webmcp') && (req.method === 'GET' || req.method === 'HEAD')) {
+    const manifestPath = path.join(__dirname, '.well-known', 'webmcp.json');
+    try {
+      const manifestData = fs.readFileSync(manifestPath, 'utf8');
+      const manifestBuffer = Buffer.from(manifestData, 'utf8');
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Length': manifestBuffer.length,
+        'Cache-Control': 'no-cache',
+        'Link': '</.well-known/webmcp.json>; rel="self"',
+        'X-WebMCP': 'enabled'
+      });
+      if (req.method === 'HEAD') return res.end();
+      return res.end(manifestBuffer);
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Failed to load WebMCP manifest' }));
+    }
+  }
+
+  // WebMCP Server Tool Execution Endpoints
+  if ((url.pathname.startsWith('/_webmcp/exec/') || url.pathname === '/api/webmcp/execute') && req.method === 'POST') {
+    let data;
+    try {
+      data = await parseJsonBody(req, res);
+    } catch {
+      return;
+    }
+
+    const toolName = url.pathname === '/api/webmcp/execute'
+      ? data?.tool
+      : decodeURIComponent(url.pathname.replace('/_webmcp/exec/', '').trim());
+    const params = url.pathname === '/api/webmcp/execute' ? (data?.params || {}) : data;
+
+    if (toolName === 'push_button') {
+      const times = Math.min(100, Math.max(1, parseInt(params?.count || 1, 10) || 1));
+      globalCount += times;
+      saveGlobalCount();
+      broadcastToPushers('push');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, tool: 'push_button', count: globalCount, pushed: times }));
+    }
+
+    if (toolName === 'get_status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({
+        success: true,
+        tool: 'get_status',
+        count: globalCount,
+        activePushers: sseClients.size,
+        activeSubscriptions: subscriptions.size
+      }));
+    }
+
+    if (toolName === 'reset_counter') {
+      globalCount = 0;
+      saveGlobalCount();
+      broadcastToPushers('reset');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, tool: 'reset_counter', count: 0, status: 'reset' }));
+    }
+
+    if (toolName === 'set_sound') {
+      const enabled = Boolean(params?.enabled);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ success: true, tool: 'set_sound', soundEnabled: enabled }));
+    }
+
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: `Tool '${toolName}' not found` }));
+  }
+
   if (url.pathname === '/api/vapid-public-key' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ publicKey: vapidKeys.publicKey }));

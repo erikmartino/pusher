@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "PORT=3000 node server.mjs",
     "start": "PORT=8080 node server.mjs",
+    "test": "node test.mjs",
     "docker:build": "docker build --build-arg GIT_REF=$(git rev-parse --short HEAD 2>/dev/null || echo '') -t pusher:latest .",
     "docker:run": "docker run --rm -p 8080:80 -v pusher_data:/data --name pusher pusher:latest",
     "podman:build": "podman build --build-arg GIT_REF=$(git rev-parse --short HEAD 2>/dev/null || echo '') -t pusher:latest .",

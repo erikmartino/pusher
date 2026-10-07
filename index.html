@@ -21,6 +21,9 @@
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0e131b" />
 
+  <!-- WebMCP (Web Model Context Protocol) Discovery -->
+  <link rel="webmcp" href="/.well-known/webmcp.json" />
+
   <!-- Windows Tiles -->
   <meta name="msapplication-config" content="browserconfig.xml" />
   <meta name="msapplication-TileColor" content="#e52d27" />
@@ -454,6 +457,27 @@
       </a>
     </div>
   </footer>
+
+  <!-- WebMCP (Web Model Context Protocol) Declarative Forms -->
+  <div id="webmcp-tools" class="webmcp-container" aria-hidden="true" style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;">
+    <form id="webmcpPushForm" toolname="push_button" tooldescription="Presses the Big Red Button. Increments the push counter, plays tactile audio, triggers device haptics, and broadcasts the push event." toolautosubmit>
+      <input type="number" name="count" toolparamdescription="Number of times to push the button (between 1 and 100, default 1)" min="1" max="100" value="1" />
+      <button type="submit">Push Button</button>
+    </form>
+
+    <form id="webmcpStatusForm" toolname="get_status" tooldescription="Retrieves the current state of Pusher including total pushes, push rate, sound settings, online status, and push notification subscription status." toolautosubmit>
+      <button type="submit">Get Status</button>
+    </form>
+
+    <form id="webmcpResetForm" toolname="reset_counter" tooldescription="Resets the global push counter back to zero." toolautosubmit>
+      <button type="submit">Reset Counter</button>
+    </form>
+
+    <form id="webmcpSoundForm" toolname="set_sound" tooldescription="Enables or mutes the tactile audio click effects." toolautosubmit>
+      <input type="checkbox" name="enabled" toolparamdescription="Whether tactile mechanical sound should be enabled" checked />
+      <button type="submit">Set Sound</button>
+    </form>
+  </div>
 
   <script>
     // Audio Synthesis for Heavy Industrial Click
@@ -896,6 +920,210 @@
         const isSha = /^[a-f0-9]{7,40}$/i.test(ref);
         githubLink.title = isSha ? `Commit ${ref.slice(0, 7)} on GitHub` : `Release ${ref} on GitHub`;
       }
+    }
+
+    // --- WebMCP (Web Model Context Protocol) Support ---
+    // 1. Declarative WebMCP event handling
+    function setupDeclarativeWebMCP() {
+      const pushForm = document.getElementById('webmcpPushForm');
+      const statusForm = document.getElementById('webmcpStatusForm');
+      const resetForm = document.getElementById('webmcpResetForm');
+      const soundForm = document.getElementById('webmcpSoundForm');
+
+      const respond = (e, data) => {
+        e.preventDefault();
+        if (typeof e.respondWith === 'function') {
+          try {
+            e.respondWith(Promise.resolve(data));
+          } catch (err) {
+            console.warn('WebMCP respondWith error:', err);
+          }
+        }
+        return data;
+      };
+
+      if (pushForm) {
+        pushForm.addEventListener('submit', (e) => {
+          const formData = new FormData(pushForm);
+          const rawCount = formData.get('count');
+          const times = Math.min(100, Math.max(1, parseInt(rawCount || '1', 10) || 1));
+          pushBtn.classList.add('pressed');
+          for (let i = 0; i < times; i++) {
+            doPush();
+          }
+          setTimeout(() => releaseButton(), 150);
+          return respond(e, { success: true, count, pushed: times });
+        });
+      }
+
+      if (statusForm) {
+        statusForm.addEventListener('submit', (e) => {
+          return respond(e, {
+            count,
+            rate: pushTimestamps.length,
+            soundEnabled,
+            online: navigator.onLine,
+            pushSubscribed: isPushSubscribed
+          });
+        });
+      }
+
+      if (resetForm) {
+        resetForm.addEventListener('submit', async (e) => {
+          updateCounterUI(0, false);
+          if (navigator.onLine) {
+            try {
+              await fetch('/api/reset', { method: 'POST' });
+            } catch {}
+          }
+          return respond(e, { success: true, count: 0, status: 'reset' });
+        });
+      }
+
+      if (soundForm) {
+        soundForm.addEventListener('submit', (e) => {
+          const formData = new FormData(soundForm);
+          const isEnabled = formData.get('enabled') !== null;
+          soundEnabled = isEnabled;
+          soundToggle.classList.toggle('muted', !soundEnabled);
+          soundToggle.setAttribute('aria-label', soundEnabled ? 'Mute Sound' : 'Unmute Sound');
+          if (soundEnabled) {
+            initAudio();
+            playMechanicalSound('press');
+            setTimeout(() => playMechanicalSound('release'), 60);
+          }
+          return respond(e, { success: true, soundEnabled });
+        });
+      }
+    }
+    setupDeclarativeWebMCP();
+
+    // 2. Native Imperative WebMCP tool registration (No polyfill)
+    async function registerNativeWebMCPTools() {
+      const modelContext = (typeof document !== 'undefined' && document.modelContext) ||
+                           (typeof navigator !== 'undefined' && navigator.modelContext);
+      if (!modelContext || typeof modelContext.registerTool !== 'function') {
+        return;
+      }
+
+      const tools = [
+        {
+          name: 'push_button',
+          title: 'Push Button',
+          description: 'Presses the Big Red Button. Increments the push counter, plays tactile audio, triggers device haptics, and broadcasts the push event.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              count: {
+                type: 'integer',
+                description: 'Number of times to push the button (between 1 and 100, default 1)',
+                minimum: 1,
+                maximum: 100,
+                default: 1
+              }
+            }
+          },
+          annotations: {
+            readOnlyHint: false,
+            consequentialHint: true
+          },
+          execute: async (params) => {
+            const times = Math.min(100, Math.max(1, parseInt(params?.count || 1, 10) || 1));
+            pushBtn.classList.add('pressed');
+            for (let i = 0; i < times; i++) {
+              doPush();
+            }
+            setTimeout(() => releaseButton(), 150);
+            return { success: true, count, pushed: times };
+          }
+        },
+        {
+          name: 'get_status',
+          title: 'Get Status',
+          description: 'Retrieves the current state of Pusher including total pushes, push rate, sound settings, online status, and push notification subscription status.',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          },
+          annotations: {
+            readOnlyHint: true
+          },
+          execute: async () => {
+            return {
+              count,
+              rate: pushTimestamps.length,
+              soundEnabled,
+              online: navigator.onLine,
+              pushSubscribed: isPushSubscribed
+            };
+          }
+        },
+        {
+          name: 'reset_counter',
+          title: 'Reset Counter',
+          description: 'Resets the global push counter back to zero.',
+          inputSchema: {
+            type: 'object',
+            properties: {}
+          },
+          annotations: {
+            readOnlyHint: false,
+            consequentialHint: true
+          },
+          execute: async () => {
+            updateCounterUI(0, false);
+            if (navigator.onLine) {
+              try {
+                await fetch('/api/reset', { method: 'POST' });
+              } catch {}
+            }
+            return { success: true, count: 0, status: 'reset' };
+          }
+        },
+        {
+          name: 'set_sound',
+          title: 'Set Sound',
+          description: 'Enables or mutes the tactile audio click effects.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              enabled: {
+                type: 'boolean',
+                description: 'Whether tactile mechanical sound should be enabled (true) or muted (false).'
+              }
+            },
+            required: ['enabled']
+          },
+          annotations: {
+            readOnlyHint: false
+          },
+          execute: async (params) => {
+            soundEnabled = Boolean(params?.enabled);
+            soundToggle.classList.toggle('muted', !soundEnabled);
+            soundToggle.setAttribute('aria-label', soundEnabled ? 'Mute Sound' : 'Unmute Sound');
+            if (soundEnabled) {
+              initAudio();
+              playMechanicalSound('press');
+              setTimeout(() => playMechanicalSound('release'), 60);
+            }
+            return { success: true, soundEnabled };
+          }
+        }
+      ];
+
+      for (const tool of tools) {
+        try {
+          await modelContext.registerTool(tool);
+        } catch (err) {
+          console.warn(`WebMCP tool registration failed for ${tool.name}:`, err);
+        }
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', registerNativeWebMCPTools);
+    } else {
+      registerNativeWebMCPTools();
     }
   </script>
 </body>

@@ -16,6 +16,7 @@ A tactile, responsive, installable Progressive Web App (PWA) push button built w
 - 🔊 **Web Audio Effects**: Procedurally synthesized mechanical click feedback.
 - 📳 **Haptic Feedback**: Vibration API triggers on mobile devices when pressed.
 - 📊 **Local Statistics**: Persistent click counters, combo streaks, and session metrics.
+- 🤖 **WebMCP (Web Model Context Protocol)**: Native AI agent tool integration via declarative HTML forms and imperative `document.modelContext` with `/.well-known/webmcp.json` discovery.
 - 🐳 **Lightweight Container**: Zero-dependency Node.js Alpine image with static asset serving and push endpoints.
 - 🚀 **Automated CI/CD**: Multi-platform container builds (`linux/amd64`, `linux/arm64`) pushed automatically to GitHub Container Registry (`ghcr.io`).
 
@@ -77,6 +78,21 @@ The container image is published to GitHub Container Registry:
 - **Registry**: `ghcr.io`
 - **Image**: `ghcr.io/erikmartino/pusher`
 - **Tags**: `latest`, `<git-sha>`, `vX.Y.Z`
+
+---
+
+## 🤖 WebMCP (Web Model Context Protocol)
+
+Pusher supports [WebMCP](https://webmachinelearning.github.io/webmcp/), allowing AI browser agents to discover and interact with the push button directly via structured tools without brittle DOM scraping:
+
+- **Discovery**: Machine-readable catalog available at `/.well-known/webmcp.json` and announced via `<link rel="webmcp" href="/.well-known/webmcp.json" />` and `Link: </.well-known/webmcp.json>; rel="webmcp"` HTTP header.
+- **Declarative WebMCP**: Annotated HTML `<form toolname="..." tooldescription="..." toolautosubmit>` elements with `toolparamdescription` fields.
+- **Native Imperative WebMCP**: Automatic registration via `document.modelContext.registerTool()` (and `navigator.modelContext`) without third-party polyfills.
+- **Exposed Tools**:
+  - `push_button`: Presses the tactile button (`count` parameter 1-100).
+  - `get_status`: Inspects button state, push count, rate, sound, and online sync status.
+  - `reset_counter`: Resets push counter to 0.
+  - `set_sound`: Enables or mutes tactile mechanical audio feedback (`enabled: boolean`).
 
 ---
 

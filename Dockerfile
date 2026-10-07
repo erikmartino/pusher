@@ -9,6 +9,7 @@ WORKDIR /app
 # Copy server, static application files, and optional persistent configuration
 COPY server.mjs index.html sw.js manifest.json browserconfig.xml LICENSE* ./
 COPY icons ./icons
+COPY .well-known ./.well-known
 
 ARG GIT_REF=""
 ARG COMMIT_SHA=""

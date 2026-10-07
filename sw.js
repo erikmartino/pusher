@@ -1,8 +1,9 @@
-const CACHE_NAME = 'pusher-v8';
+const CACHE_NAME = 'pusher-v9';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
+  './.well-known/webmcp.json',
   './icons/favicon.ico',
   './icons/favicon-16x16.png',
   './icons/favicon-32x32.png',

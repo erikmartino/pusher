@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "Pusher",
+  "description": "Tactile Push Button Progressive Web App with WebMCP tool support.",
+  "version": "1.0.0",
+  "tools": [
+    {
+      "name": "push_button",
+      "title": "Push Button",
+      "description": "Presses the Big Red Button. Increments the push counter, plays tactile audio, triggers device haptics, and broadcasts the push event.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "description": "Number of times to push the button (between 1 and 100). Defaults to 1.",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 1
+          }
+        }
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "consequentialHint": true
+      }
+    },
+    {
+      "name": "get_status",
+      "title": "Get Status",
+      "description": "Retrieves the current state of Pusher including total pushes, push rate, sound settings, online status, and push notification subscription status.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": true
+      }
+    },
+    {
+      "name": "reset_counter",
+      "title": "Reset Counter",
+      "description": "Resets the global push counter back to zero.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      },
+      "annotations": {
+        "readOnlyHint": false,
+        "consequentialHint": true
+      }
+    },
+    {
+      "name": "set_sound",
+      "title": "Set Sound",
+      "description": "Enables or mutes the tactile audio click effects.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether tactile mechanical sound should be enabled (true) or muted (false)."
+          }
+        },
+        "required": ["enabled"]
+      },
+      "annotations": {
+        "readOnlyHint": false
+      }
+    }
+  ]
+}
