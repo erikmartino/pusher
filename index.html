@@ -387,29 +387,36 @@
     }
 
     /* WebMCP Widget & Panel */
-    .webmcp-widget-btn {
+    .webmcp-container-root {
       position: fixed;
-      bottom: 16px;
-      right: 16px;
-      width: 34px;
-      height: 34px;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .webmcp-widget-btn {
+      width: 30px;
+      height: 30px;
       background: #007bff;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0, 123, 255, 0.45);
+      border: none;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 9999;
       color: #ffffff;
+      padding: 0;
       transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
     }
 
     .webmcp-widget-btn:hover {
       transform: scale(1.08);
       background: #0069d9;
-      box-shadow: 0 6px 20px rgba(0, 123, 255, 0.6);
+      box-shadow: 0 4px 14px rgba(0, 123, 255, 0.5);
     }
 
     .webmcp-widget-btn:active {
@@ -417,16 +424,16 @@
     }
 
     .webmcp-panel {
-      position: fixed;
-      bottom: 58px;
-      right: 16px;
-      width: 320px;
+      position: absolute;
+      bottom: 38px;
+      right: 0;
+      width: 300px;
       max-width: calc(100vw - 32px);
       max-height: 80vh;
       background: rgba(13, 17, 23, 0.96);
       backdrop-filter: blur(16px);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 14px;
+      border-radius: 12px;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.65);
       z-index: 10000;
       padding: 14px;
@@ -675,53 +682,55 @@
   </div>
 
   <!-- WebMCP Floating Widget & Panel -->
-  <button id="webmcpWidgetBtn" class="webmcp-widget-btn" aria-label="WebMCP AI Tools" title="WebMCP — Click to view AI tools & connection">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="4" />
-      <path d="M7 10h10" />
-      <path d="M12 7v10" />
-    </svg>
-  </button>
-
-  <div id="webmcpPanel" class="webmcp-panel" role="dialog" aria-labelledby="webmcpTitle" aria-hidden="true">
-    <div class="webmcp-panel-header">
-      <div id="webmcpTitle" class="webmcp-panel-title">
-        <span>WebMCP</span>
-        <span class="webmcp-tag">Active</span>
+  <div class="webmcp-container-root" data-webmcp-widget="true">
+    <div id="webmcpPanel" class="webmcp-panel" role="dialog" aria-labelledby="webmcpTitle" aria-hidden="true">
+      <div class="webmcp-panel-header">
+        <div id="webmcpTitle" class="webmcp-panel-title">
+          <span>WebMCP</span>
+          <span class="webmcp-tag">Active</span>
+        </div>
+        <button id="webmcpCloseBtn" class="webmcp-close-btn" aria-label="Close WebMCP panel">✕</button>
       </div>
-      <button id="webmcpCloseBtn" class="webmcp-close-btn" aria-label="Close WebMCP panel">✕</button>
+      <p class="webmcp-desc">Exposing 4 structured tools for browser agents & MCP clients directly on this page.</p>
+
+      <div class="webmcp-tool-list">
+        <div class="webmcp-tool-item">
+          <span class="webmcp-tool-name">push_button</span>
+          <button class="webmcp-tool-exec" data-tool="push_button">Run</button>
+        </div>
+        <div class="webmcp-tool-item">
+          <span class="webmcp-tool-name">get_status</span>
+          <button class="webmcp-tool-exec" data-tool="get_status">Run</button>
+        </div>
+        <div class="webmcp-tool-item">
+          <span class="webmcp-tool-name">set_sound</span>
+          <button class="webmcp-tool-exec" data-tool="set_sound">Run</button>
+        </div>
+        <div class="webmcp-tool-item">
+          <span class="webmcp-tool-name">reset_counter</span>
+          <button class="webmcp-tool-exec" data-tool="reset_counter">Run</button>
+        </div>
+      </div>
+
+      <div id="webmcpOutput" class="webmcp-output-box" style="display: none;"></div>
+
+      <div class="webmcp-token-section">
+        <span class="webmcp-desc">Connect desktop MCP client (Claude Desktop / Cursor):</span>
+        <div class="webmcp-token-input-row">
+          <input id="webmcpTokenInput" class="webmcp-token-input" type="password" placeholder="Paste WebMCP token..." />
+          <button id="webmcpTokenConnectBtn" class="webmcp-connect-btn">Connect</button>
+        </div>
+        <span id="webmcpBridgeStatus" class="webmcp-desc" style="font-size: 0.68rem; color: #94a3b8;">Status: W3C browser standard ready</span>
+      </div>
     </div>
-    <p class="webmcp-desc">Exposing 4 structured tools for browser agents & MCP clients directly on this page.</p>
 
-    <div class="webmcp-tool-list">
-      <div class="webmcp-tool-item">
-        <span class="webmcp-tool-name">push_button</span>
-        <button class="webmcp-tool-exec" data-tool="push_button">Run</button>
-      </div>
-      <div class="webmcp-tool-item">
-        <span class="webmcp-tool-name">get_status</span>
-        <button class="webmcp-tool-exec" data-tool="get_status">Run</button>
-      </div>
-      <div class="webmcp-tool-item">
-        <span class="webmcp-tool-name">set_sound</span>
-        <button class="webmcp-tool-exec" data-tool="set_sound">Run</button>
-      </div>
-      <div class="webmcp-tool-item">
-        <span class="webmcp-tool-name">reset_counter</span>
-        <button class="webmcp-tool-exec" data-tool="reset_counter">Run</button>
-      </div>
-    </div>
-
-    <div id="webmcpOutput" class="webmcp-output-box" style="display: none;"></div>
-
-    <div class="webmcp-token-section">
-      <span class="webmcp-desc">Connect desktop MCP client (Claude Desktop / Cursor):</span>
-      <div class="webmcp-token-input-row">
-        <input id="webmcpTokenInput" class="webmcp-token-input" type="password" placeholder="Paste WebMCP token..." />
-        <button id="webmcpTokenConnectBtn" class="webmcp-connect-btn">Connect</button>
-      </div>
-      <span id="webmcpBridgeStatus" class="webmcp-desc" style="font-size: 0.68rem; color: #94a3b8;">Status: W3C browser standard ready</span>
-    </div>
+    <button id="webmcpWidgetBtn" class="webmcp-widget-btn" aria-label="WebMCP AI Tools" title="WebMCP — Click to view AI tools & connection">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3" />
+        <path d="M7 12h10" />
+        <path d="M12 7v10" />
+      </svg>
+    </button>
   </div>
 
   <script>
@@ -1147,9 +1156,17 @@
 
     // Service Worker Registration
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      });
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('./sw.js').then((reg) => {
           console.log('ServiceWorker registered:', reg.scope);
+          reg.update().catch(() => {});
           checkPushSubscription();
         }).catch((err) => {
           console.warn('ServiceWorker registration failed:', err);
@@ -1489,6 +1506,40 @@
       });
     }
     setupWebMCPWidget();
+
+    // 4. WebMCP API Compatibility Layer (window.mcp & window.WebMCP)
+    class WebMCP {
+      constructor(options = {}) {
+        this.options = { color: '#007bff', position: 'bottom-right', size: '30px', ...options };
+        this.availableTools = new Map();
+        this.availablePrompts = new Map();
+        this.availableResources = new Map();
+      }
+      registerTool(name, description, schema, executeFn) {
+        this.availableTools.set(name, { name, description, inputSchema: schema, executeFn });
+      }
+      getTools() {
+        return Array.from(this.availableTools.values());
+      }
+    }
+    window.WebMCP = WebMCP;
+    window.mcp = new WebMCP();
+    window.mcp.registerTool('push_button', 'Presses the Big Red Button', { type: 'object', properties: { count: { type: 'number' } } }, async () => {
+      await doPush();
+      return { success: true, count };
+    });
+    window.mcp.registerTool('get_status', 'Retrieves the current state of Pusher', { type: 'object' }, async () => {
+      return { success: true, count, rate: pushTimestamps.length, soundEnabled, online: navigator.onLine };
+    });
+    window.mcp.registerTool('set_sound', 'Enables or mutes the tactile audio click effects', { type: 'object', properties: { enabled: { type: 'boolean' } } }, async (args) => {
+      soundEnabled = typeof args?.enabled === 'boolean' ? args.enabled : !soundEnabled;
+      return { success: true, soundEnabled };
+    });
+    window.mcp.registerTool('reset_counter', 'Resets the global push counter back to zero', { type: 'object' }, async () => {
+      updateCounterUI(0, false);
+      try { await fetch('/api/reset', { method: 'POST' }); } catch {}
+      return { success: true, count: 0, status: 'reset' };
+    });
   </script>
 </body>
 </html>

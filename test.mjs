@@ -53,6 +53,9 @@ test('index.html contains WebMCP discovery link and declarative forms without po
   // Verify WebMCP widget button and panel are present
   assert.match(html, /id="webmcpWidgetBtn"/, 'Has WebMCP floating widget button');
   assert.match(html, /id="webmcpPanel"/, 'Has WebMCP widget interactive panel');
+  assert.match(html, /data-webmcp-widget="true"/, 'Has data-webmcp-widget attribute');
+  assert.match(html, /class WebMCP/, 'Defines WebMCP class');
+  assert.match(html, /window\.mcp\s*=/, 'Exposes window.mcp instance');
 
   // Verify NO polyfill is included
   assert.doesNotMatch(html, /webmcp-polyfill/i, 'Does NOT load webmcp-polyfill');
@@ -64,7 +67,7 @@ test('sw.js caches WebMCP manifest and uses updated cache name', () => {
   const swPath = path.join(__dirname, 'sw.js');
   const sw = fs.readFileSync(swPath, 'utf8');
 
-  assert.match(sw, /CACHE_NAME\s*=\s*'pusher-v9'/, 'Uses pusher-v9 cache');
+  assert.match(sw, /CACHE_NAME\s*=\s*'pusher-v10'/, 'Uses pusher-v10 cache');
   assert.match(sw, /'\.\/\.well-known\/webmcp\.json'/, 'Caches .well-known/webmcp.json');
 });
 
