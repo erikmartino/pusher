@@ -385,6 +385,201 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+
+    /* WebMCP Widget & Panel */
+    .webmcp-widget-btn {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 34px;
+      height: 34px;
+      background: #007bff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 123, 255, 0.45);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      color: #ffffff;
+      transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .webmcp-widget-btn:hover {
+      transform: scale(1.08);
+      background: #0069d9;
+      box-shadow: 0 6px 20px rgba(0, 123, 255, 0.6);
+    }
+
+    .webmcp-widget-btn:active {
+      transform: scale(0.92);
+    }
+
+    .webmcp-panel {
+      position: fixed;
+      bottom: 58px;
+      right: 16px;
+      width: 320px;
+      max-width: calc(100vw - 32px);
+      max-height: 80vh;
+      background: rgba(13, 17, 23, 0.96);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 14px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.65);
+      z-index: 10000;
+      padding: 14px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      animation: fadeIn 0.2s ease;
+      color: var(--text-main);
+    }
+
+    .webmcp-panel.open {
+      display: flex;
+    }
+
+    .webmcp-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+    }
+
+    .webmcp-panel-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+
+    .webmcp-tag {
+      font-size: 0.65rem;
+      background: rgba(16, 185, 129, 0.18);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-weight: 600;
+    }
+
+    .webmcp-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .webmcp-close-btn:hover {
+      color: #fff;
+    }
+
+    .webmcp-desc {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .webmcp-tool-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .webmcp-tool-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+    }
+
+    .webmcp-tool-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: #93c5fd;
+    }
+
+    .webmcp-tool-exec {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+
+    .webmcp-tool-exec:hover {
+      background: #1d4ed8;
+    }
+
+    .webmcp-output-box {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.68rem;
+      color: #e2e8f0;
+      max-height: 90px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .webmcp-token-section {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .webmcp-token-input-row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .webmcp-token-input {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.72rem;
+      color: #fff;
+      outline: none;
+    }
+
+    .webmcp-token-input:focus {
+      border-color: #3b82f6;
+    }
+
+    .webmcp-connect-btn {
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -477,6 +672,56 @@
       <input type="checkbox" name="enabled" toolparamdescription="Whether tactile mechanical sound should be enabled" checked />
       <button type="submit">Set Sound</button>
     </form>
+  </div>
+
+  <!-- WebMCP Floating Widget & Panel -->
+  <button id="webmcpWidgetBtn" class="webmcp-widget-btn" aria-label="WebMCP AI Tools" title="WebMCP — Click to view AI tools & connection">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="4" />
+      <path d="M7 10h10" />
+      <path d="M12 7v10" />
+    </svg>
+  </button>
+
+  <div id="webmcpPanel" class="webmcp-panel" role="dialog" aria-labelledby="webmcpTitle" aria-hidden="true">
+    <div class="webmcp-panel-header">
+      <div id="webmcpTitle" class="webmcp-panel-title">
+        <span>WebMCP</span>
+        <span class="webmcp-tag">Active</span>
+      </div>
+      <button id="webmcpCloseBtn" class="webmcp-close-btn" aria-label="Close WebMCP panel">✕</button>
+    </div>
+    <p class="webmcp-desc">Exposing 4 structured tools for browser agents & MCP clients directly on this page.</p>
+
+    <div class="webmcp-tool-list">
+      <div class="webmcp-tool-item">
+        <span class="webmcp-tool-name">push_button</span>
+        <button class="webmcp-tool-exec" data-tool="push_button">Run</button>
+      </div>
+      <div class="webmcp-tool-item">
+        <span class="webmcp-tool-name">get_status</span>
+        <button class="webmcp-tool-exec" data-tool="get_status">Run</button>
+      </div>
+      <div class="webmcp-tool-item">
+        <span class="webmcp-tool-name">set_sound</span>
+        <button class="webmcp-tool-exec" data-tool="set_sound">Run</button>
+      </div>
+      <div class="webmcp-tool-item">
+        <span class="webmcp-tool-name">reset_counter</span>
+        <button class="webmcp-tool-exec" data-tool="reset_counter">Run</button>
+      </div>
+    </div>
+
+    <div id="webmcpOutput" class="webmcp-output-box" style="display: none;"></div>
+
+    <div class="webmcp-token-section">
+      <span class="webmcp-desc">Connect desktop MCP client (Claude Desktop / Cursor):</span>
+      <div class="webmcp-token-input-row">
+        <input id="webmcpTokenInput" class="webmcp-token-input" type="password" placeholder="Paste WebMCP token..." />
+        <button id="webmcpTokenConnectBtn" class="webmcp-connect-btn">Connect</button>
+      </div>
+      <span id="webmcpBridgeStatus" class="webmcp-desc" style="font-size: 0.68rem; color: #94a3b8;">Status: W3C browser standard ready</span>
+    </div>
   </div>
 
   <script>
@@ -1127,6 +1372,123 @@
     } else {
       registerNativeWebMCPTools();
     }
+
+    // 3. WebMCP Floating Widget & Panel Controller
+    function setupWebMCPWidget() {
+      const widgetBtn = document.getElementById('webmcpWidgetBtn');
+      const panel = document.getElementById('webmcpPanel');
+      const closeBtn = document.getElementById('webmcpCloseBtn');
+      const outputBox = document.getElementById('webmcpOutput');
+      const tokenInput = document.getElementById('webmcpTokenInput');
+      const connectBtn = document.getElementById('webmcpTokenConnectBtn');
+      const bridgeStatus = document.getElementById('webmcpBridgeStatus');
+
+      if (!widgetBtn || !panel) return;
+
+      const togglePanel = (open) => {
+        const isOpen = open !== undefined ? open : !panel.classList.contains('open');
+        panel.classList.toggle('open', isOpen);
+        panel.setAttribute('aria-hidden', (!isOpen).toString());
+      };
+
+      widgetBtn.addEventListener('click', () => togglePanel());
+      closeBtn?.addEventListener('click', () => togglePanel(false));
+
+      // Handle running tools from the widget
+      const execButtons = panel.querySelectorAll('.webmcp-tool-exec');
+      execButtons.forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const tool = btn.getAttribute('data-tool');
+          btn.textContent = '...';
+          try {
+            let res;
+            if (tool === 'push_button') {
+              pushBtn.classList.add('pressed');
+              await doPush();
+              setTimeout(() => releaseButton(), 150);
+              res = { success: true, tool, count, pushed: 1 };
+            } else if (tool === 'get_status') {
+              res = {
+                success: true,
+                tool,
+                count,
+                rate: pushTimestamps.length,
+                soundEnabled,
+                online: navigator.onLine,
+                pushSubscribed: isPushSubscribed
+              };
+            } else if (tool === 'set_sound') {
+              soundEnabled = !soundEnabled;
+              soundToggle.classList.toggle('muted', !soundEnabled);
+              soundToggle.setAttribute('aria-label', soundEnabled ? 'Mute Sound' : 'Unmute Sound');
+              if (soundEnabled) {
+                initAudio();
+                playMechanicalSound('press');
+                setTimeout(() => playMechanicalSound('release'), 60);
+              }
+              res = { success: true, tool, soundEnabled };
+            } else if (tool === 'reset_counter') {
+              updateCounterUI(0, false);
+              if (navigator.onLine) {
+                try { await fetch('/api/reset', { method: 'POST' }); } catch {}
+              }
+              res = { success: true, tool, count: 0, status: 'reset' };
+            }
+            if (outputBox) {
+              outputBox.style.display = 'block';
+              outputBox.textContent = JSON.stringify(res, null, 2);
+            }
+          } catch (err) {
+            if (outputBox) {
+              outputBox.style.display = 'block';
+              outputBox.textContent = `Error: ${err.message}`;
+            }
+          } finally {
+            btn.textContent = 'Run';
+          }
+        });
+      });
+
+      // Handle token connection for desktop MCP clients
+      connectBtn?.addEventListener('click', () => {
+        const token = tokenInput?.value?.trim();
+        if (!token) {
+          bridgeStatus.textContent = 'Please enter a token';
+          bridgeStatus.style.color = '#f87171';
+          return;
+        }
+        sessionStorage.setItem('webmcp_token', token);
+        bridgeStatus.textContent = 'Connecting to local MCP WebSocket...';
+        bridgeStatus.style.color = '#60a5fa';
+
+        // Attempt localhost websocket connection (standard port 3000 / 8080)
+        try {
+          const ws = new WebSocket('ws://localhost:3000/register');
+          ws.onopen = () => {
+            ws.send(JSON.stringify({
+              token,
+              domain: window.location.host,
+              tools: [
+                { name: 'push_button', description: 'Press the Big Red Button' },
+                { name: 'get_status', description: 'Get pusher status' },
+                { name: 'set_sound', description: 'Toggle mechanical sound' },
+                { name: 'reset_counter', description: 'Reset counter' }
+              ]
+            }));
+            bridgeStatus.textContent = 'Connected to MCP client! 🟢';
+            bridgeStatus.style.color = '#10b981';
+          };
+          ws.onerror = () => {
+            bridgeStatus.textContent = 'Local MCP server not detected. Token saved.';
+            bridgeStatus.style.color = '#94a3b8';
+          };
+        } catch {
+          bridgeStatus.textContent = 'Bridge token saved in session.';
+          bridgeStatus.style.color = '#94a3b8';
+        }
+      });
+    }
+    setupWebMCPWidget();
   </script>
 </body>
 </html>

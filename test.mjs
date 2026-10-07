@@ -50,6 +50,10 @@ test('index.html contains WebMCP discovery link and declarative forms without po
   assert.match(html, /registerTool/i, 'Has registerTool call for native modelContext');
   assert.match(html, /document\.modelContext/i, 'References document.modelContext');
 
+  // Verify WebMCP widget button and panel are present
+  assert.match(html, /id="webmcpWidgetBtn"/, 'Has WebMCP floating widget button');
+  assert.match(html, /id="webmcpPanel"/, 'Has WebMCP widget interactive panel');
+
   // Verify NO polyfill is included
   assert.doesNotMatch(html, /webmcp-polyfill/i, 'Does NOT load webmcp-polyfill');
   assert.doesNotMatch(html, /polyfill\.js/i, 'Does NOT load polyfill.js');
