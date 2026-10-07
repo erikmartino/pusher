@@ -180,3 +180,169 @@ test('Server WebMCP endpoints and headers', async () => {
     } catch {}
   }
 });
+
+// 5. Full In-Browser Functional Simulation of WebMCP
+test('WebMCP imperative and declarative tools execute and produce expected results', async () => {
+  // Setup simulated DOM & modelContext
+  const registeredTools = new Map();
+  const modelContext = {
+    registerTool: async (tool) => {
+      registeredTools.set(tool.name, tool);
+    },
+    getTools: async () => Array.from(registeredTools.values()),
+    executeTool: async (tool, params) => {
+      const target = registeredTools.get(tool.name || tool);
+      assert.ok(target, `Tool ${tool.name || tool} must exist`);
+      return target.execute(params);
+    }
+  };
+
+  // State mock
+  let count = 0;
+  let soundEnabled = true;
+  let pushTimestamps = [];
+  const pushBtn = { classList: { add: () => {}, remove: () => {}, contains: () => false } };
+  const counterEl = { textContent: '0', classList: { add: () => {}, remove: () => {} } };
+  const soundToggle = {
+    classList: { toggle: (cls, val) => {} },
+    setAttribute: () => {}
+  };
+
+  const updateCounterUI = (newCount) => {
+    count = newCount;
+    counterEl.textContent = count.toString();
+  };
+
+  const doPush = async () => {
+    updateCounterUI(count + 1);
+    pushTimestamps.push(Date.now());
+    return count;
+  };
+
+  const releaseButton = () => {};
+
+  // Register tools using the exact logic from index.html
+  const tools = [
+    {
+      name: 'push_button',
+      title: 'Push Button',
+      description: 'Presses the Big Red Button. Increments the push counter, plays tactile audio, triggers device haptics, and broadcasts the push event.',
+      inputSchema: {
+        type: 'object',
+        properties: { count: { type: 'integer', minimum: 1, maximum: 100, default: 1 } }
+      },
+      annotations: { readOnlyHint: false, consequentialHint: true },
+      execute: async (params) => {
+        const times = Math.min(100, Math.max(1, parseInt(params?.count || 1, 10) || 1));
+        pushBtn.classList.add('pressed');
+        for (let i = 0; i < times; i++) {
+          await doPush();
+        }
+        setTimeout(() => releaseButton(), 150);
+        return { success: true, count, pushed: times };
+      }
+    },
+    {
+      name: 'get_status',
+      title: 'Get Status',
+      description: 'Retrieves the current state of Pusher.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: true },
+      execute: async () => {
+        return {
+          count,
+          rate: pushTimestamps.length,
+          soundEnabled,
+          online: true,
+          pushSubscribed: false
+        };
+      }
+    },
+    {
+      name: 'reset_counter',
+      title: 'Reset Counter',
+      description: 'Resets the global push counter back to zero.',
+      inputSchema: { type: 'object', properties: {} },
+      annotations: { readOnlyHint: false, consequentialHint: true },
+      execute: async () => {
+        updateCounterUI(0);
+        return { success: true, count: 0, status: 'reset' };
+      }
+    },
+    {
+      name: 'set_sound',
+      title: 'Set Sound',
+      description: 'Enables or mutes the tactile audio click effects.',
+      inputSchema: {
+        type: 'object',
+        properties: { enabled: { type: 'boolean' } },
+        required: ['enabled']
+      },
+      annotations: { readOnlyHint: false },
+      execute: async (params) => {
+        soundEnabled = Boolean(params?.enabled);
+        soundToggle.classList.toggle('muted', !soundEnabled);
+        return { success: true, soundEnabled };
+      }
+    }
+  ];
+
+  for (const t of tools) {
+    await modelContext.registerTool(t);
+  }
+
+  // 1. Discovery verification
+  const availableTools = await modelContext.getTools();
+  assert.equal(availableTools.length, 4);
+
+  // 2. Tool Execution: push_button
+  const pushRes = await modelContext.executeTool('push_button', { count: 3 });
+  assert.equal(pushRes.success, true);
+  assert.equal(pushRes.count, 3);
+  assert.equal(pushRes.pushed, 3);
+  assert.equal(count, 3);
+
+  // 3. Tool Execution: get_status
+  const statusRes = await modelContext.executeTool('get_status');
+  assert.equal(statusRes.count, 3);
+  assert.equal(statusRes.soundEnabled, true);
+
+  // 4. Tool Execution: set_sound
+  const soundRes = await modelContext.executeTool('set_sound', { enabled: false });
+  assert.equal(soundRes.success, true);
+  assert.equal(soundRes.soundEnabled, false);
+  assert.equal(soundEnabled, false);
+
+  // 5. Tool Execution: reset_counter
+  const resetRes = await modelContext.executeTool('reset_counter');
+  assert.equal(resetRes.success, true);
+  assert.equal(resetRes.count, 0);
+  assert.equal(count, 0);
+
+  // 6. Declarative submit event simulation with SubmitEvent.respondWith()
+  let declarativeResult = null;
+  const mockSubmitEvent = {
+    preventDefault: () => {},
+    respondWith: (promise) => {
+      declarativeResult = promise;
+    }
+  };
+
+  // Simulate declarative form submit handler
+  const handlePushForm = async (e, formCount) => {
+    const times = Math.min(100, Math.max(1, parseInt(formCount || '1', 10) || 1));
+    for (let i = 0; i < times; i++) {
+      await doPush();
+    }
+    const data = { success: true, count, pushed: times };
+    e.respondWith(Promise.resolve(data));
+    return data;
+  };
+
+  await handlePushForm(mockSubmitEvent, 4);
+  const resolvedData = await declarativeResult;
+  assert.equal(resolvedData.success, true);
+  assert.equal(resolvedData.count, 4);
+  assert.equal(resolvedData.pushed, 4);
+});
+

@@ -782,7 +782,7 @@
 
       // Trigger Web Push Broadcast & increment server global counter
       if (navigator.onLine) {
-        fetch('/api/push', {
+        return fetch('/api/push', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({})
@@ -792,9 +792,11 @@
           if (data && typeof data.count === 'number') {
             updateCounterUI(data.count, false);
           }
+          return count;
         })
-        .catch(() => {});
+        .catch(() => count);
       }
+      return Promise.resolve(count);
     }
 
     // Pointer events for instant responsive touch
@@ -943,13 +945,13 @@
       };
 
       if (pushForm) {
-        pushForm.addEventListener('submit', (e) => {
+        pushForm.addEventListener('submit', async (e) => {
           const formData = new FormData(pushForm);
           const rawCount = formData.get('count');
           const times = Math.min(100, Math.max(1, parseInt(rawCount || '1', 10) || 1));
           pushBtn.classList.add('pressed');
           for (let i = 0; i < times; i++) {
-            doPush();
+            await doPush();
           }
           setTimeout(() => releaseButton(), 150);
           return respond(e, { success: true, count, pushed: times });
@@ -1031,7 +1033,7 @@
             const times = Math.min(100, Math.max(1, parseInt(params?.count || 1, 10) || 1));
             pushBtn.classList.add('pressed');
             for (let i = 0; i < times; i++) {
-              doPush();
+              await doPush();
             }
             setTimeout(() => releaseButton(), 150);
             return { success: true, count, pushed: times };
